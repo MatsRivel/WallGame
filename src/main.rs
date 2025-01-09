@@ -6,7 +6,7 @@ use core::panic;
 use std::f32::consts::PI;
 
 use bevy::{color::palettes::css, gizmos::gizmos};
-use bevy::input::mouse::MouseButtonInput;
+use bevy::input::mouse::{self, MouseButtonInput};
 use bevy::input::ButtonState;
 pub use bevy::prelude::*;
 // pub use bevy_mod_raycast::prelude::*;
@@ -90,52 +90,103 @@ mod orientation{
         }
     }
 }
+fn pos_to_vec3(pos: Pos, xmod: f32, ymod: f32)->Vec3{
+    let [x,y] = pos;
+    let a1 = x as i32 - (N_TILES/2);
+    let b1 = y as i32 - (N_TILES/2);
+    let a2 = a1 as f32 * STEP_SIZE - TRENCH_WIDTH + xmod;
+    let b2 = b1 as f32 * STEP_SIZE - TRENCH_WIDTH + ymod;
+    let pos = Vec3::new( a2,b2, 0.0);
+    pos
+}
+fn vec3_to_pos(v: Vec3, xmod: f32, ymod: f32)->Pos{
+    let a3 = v.x;
+    let b3 = v.y;
+    let a2 = (a3 + TRENCH_WIDTH - xmod) / STEP_SIZE;
+    let b2 = (b3 + TRENCH_WIDTH - ymod) / STEP_SIZE;
+    let a1 = (a2 as i32) + (N_TILES*2) + (1-N_TILES%2);
+    let b1 = (b2 as i32) + (N_TILES*2) + (1-N_TILES%2);
+    let x = a1 as usize;
+    let y = b1 as usize;
+    [x,y]
+}
+
+fn tile_to_pos(v: Vec3)->Pos{
+    let xmod = - TILE_WIDTH/2f32;
+    let ymod = - TILE_WIDTH/2f32;
+    vec3_to_pos(v, xmod, ymod)
+}
+fn wall_horizontal_to_pos(v: Vec3)->Pos{
+    let xmod = - TILE_WIDTH/2f32;
+    let ymod = TRENCH_WIDTH/2f32;
+    vec3_to_pos(v, xmod, ymod)
+}
+fn wall_vertical_to_pos(v: Vec3)->Pos{
+    let xmod = TILE_WIDTH/2f32;
+    let ymod = -TRENCH_WIDTH/2f32;
+    vec3_to_pos(v, xmod, ymod)
+}
+fn wall_circle_to_pos(v: Vec3)->Pos{
+    let xmod = TRENCH_WIDTH/2f32;
+    let ymod = TRENCH_WIDTH/2f32;
+    vec3_to_pos(v, xmod, ymod)
+}
+
+
+fn pos_to_tile(pos: Pos)->Vec3{
+    let xmod = - TILE_WIDTH/2f32;
+    let ymod = - TILE_WIDTH/2f32;
+    pos_to_vec3(pos, xmod, ymod)
+}
+
+fn pos_to_wall_horizontal(pos: Pos)->Vec3{
+    let xmod = - TILE_WIDTH/2f32;
+    let ymod = TRENCH_WIDTH/2f32;
+    pos_to_vec3(pos, xmod, ymod)
+}
+
+fn pos_to_wall_vertical(pos: Pos)->Vec3{
+    let xmod = TILE_WIDTH/2f32;
+    let ymod = -TRENCH_WIDTH/2f32;
+    pos_to_vec3(pos, xmod, ymod)
+}
+
+fn pos_to_wall_cirlce(pos: Pos)->Vec3{
+    let xmod = TRENCH_WIDTH/2f32;
+    let ymod = TRENCH_WIDTH/2f32;
+    pos_to_vec3(pos, xmod, ymod)
+}
+
 pub fn initial_tile_positions_tile()->Vec<Vec3>{
     (0..N_TILES).flat_map(|x| (0..N_TILES).map(move |y| {
-        let a1 = x - (N_TILES)/2;
-        let a2 = a1 as f32 * STEP_SIZE - TRENCH_WIDTH - TILE_WIDTH/2f32;
-        let b1 = y - (N_TILES)/2;
-        let b2 = b1 as f32 * STEP_SIZE - TRENCH_WIDTH - TILE_WIDTH/2f32;
-        let pos = Vec3::new( a2,b2, 0.0);
-        pos
+        pos_to_tile([x as usize, y as usize])
     })).collect()
 }
+
 pub fn initial_tile_positions_wall_horizontal()->Vec<Vec3>{
     (0..N_TILES).flat_map(|x| {
         (0..N_TILES-1).map(move |y| {
-            let a1 = x - (N_TILES)/2;
-            let b1 = y - (N_TILES)/2;
-            let a2 = a1 as f32 * STEP_SIZE - TRENCH_WIDTH - TILE_WIDTH/2f32;
-            let b2 = b1 as f32 * STEP_SIZE - TRENCH_WIDTH/2f32;
-            let pos = Vec3::new( a2,b2, 1.0);
-            pos
+            pos_to_wall_horizontal([x as usize, y as usize])
         })
     }).collect()
 }
+
 pub fn initial_tile_positions_wall_vertical()->Vec<Vec3>{
     (0..N_TILES-1).flat_map(|x| {
         (0..N_TILES).map(move |y| {
-            let a1 = x - (N_TILES)/2;
-            let b1 = y - (N_TILES)/2;
-            let a2 = a1 as f32 * STEP_SIZE - TRENCH_WIDTH/2f32;
-            let b2 = b1 as f32 * STEP_SIZE - TRENCH_WIDTH - TILE_WIDTH/2f32;
-            let pos = Vec3::new( a2,b2, 1.0);
-            pos
+            pos_to_wall_vertical([x as usize, y as usize])
         })
     }).collect()
 }
+
 pub fn initial_tile_positions_wall_circle()->Vec<Vec3>{
     (0..N_TILES-1).flat_map(|x| {
         (0..N_TILES-1).map(move |y| {
-            let a1 = x - (N_TILES)/2;
-            let b1 = y - (N_TILES)/2;
-            let a2 = a1 as f32 * STEP_SIZE - TRENCH_WIDTH/2f32;
-            let b2 = b1 as f32 * STEP_SIZE - TRENCH_WIDTH/2f32;
-            let pos = Vec3::new( a2,b2, 1.0);
-            pos
+            pos_to_wall_cirlce([x as usize, y as usize])
         })
     }).collect()
 }
+
 pub fn setup(
         mut commands: Commands, 
         mut meshes: ResMut<Assets<Mesh>>, 
@@ -143,26 +194,8 @@ pub fn setup(
         asset_server: Res<AssetServer>,
         mut gizmos: Gizmos){
     // let tile = asset_server.load("Tile.png");
-    // let p1 = asset_server.load("src/assets/P1.png");
-    // let p2 = asset_server.load("src/assets/P2.png");
-    // let wall = asset_server.load("Wall.png");
     let cursor = asset_server.load("Cursor.png");
     commands.spawn(ControlledCamera::new());
-
-    // for image_position in initial_tile_positions_tile(){
-    //     let tile_transform = Transform::from_translation(image_position);
-    //     commands.spawn((
-    //         Sprite::from_image(tile.clone()),
-    //         tile_transform
-    //     ));
-    // }
-    // for wall_position in initial_tile_positions_wall_horizontal(){
-    //     commands.spawn(WallBundle::new(wall_position, &asset_server, Some(0.0) ));
-    // }
-    // for wall_position in initial_tile_positions_wall_vertical(){
-    //     commands.spawn(WallBundle::new(wall_position, &asset_server, Some(PI/2.0) ));
-    // }
-
 
     commands.spawn((
         MouseIdentifier,
@@ -171,82 +204,92 @@ pub fn setup(
     ));
 
 }
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct GenericGrid<const N: usize, const M: usize>{
+    grid: [[IsVisible;N];M]
+}
+impl <const N: usize, const M: usize>GenericGrid<N,M>{
+    fn new()->Self {
+        Self{grid:[[IsVisible::Visible;N];M]}
+    }
+
+    fn get_visibility(&self,pos: Pos)->Option<IsVisible> {
+        self.grid.get(pos[0])?.get(pos[1]).copied()
+    }
+
+    fn set_visible(&mut self, pos: Pos)->bool {
+        match self.grid.get_mut(pos[0]){
+            Some(v) => {
+                match v.get(pos[1]){
+                    Some(v) => {Some(*v); true},
+                    None => false,
+                }
+            }
+            None => false
+        }
+    }
+    fn set_invisible(&mut self, pos: Pos)->bool {
+        match self.grid.get_mut(pos[0]){
+            Some(v) => {
+                match v.get(pos[1]){
+                    Some(v) => {Some(*v); true},
+                    None => false,
+                }
+            }
+            None => false
+        }
+    }
+    pub fn get_visible_coords(&self)->Vec<Pos>{
+        self.grid.iter().enumerate().flat_map(|(x,row)|{
+            row.iter().enumerate().filter_map(move |(y, point)|{
+                if *point == IsVisible::Visible{
+                    Some([x,y])
+                }else{
+                    None
+                }
+            })
+        }).collect()
+    }
+}
+
+
 #[derive(Component, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct WallGrid{
-    horizontal: [[IsVisible;M_WALLS];N_WALLS],
-    vertical: [[IsVisible;N_WALLS];M_WALLS]
+    horizontal: GenericGrid<M_WALLS,N_WALLS>,
+    vertical: GenericGrid<N_WALLS,M_WALLS>,
 }
 impl WallGrid{
     pub fn new()->Self{
-        let horizontal = [[IsVisible::Visible;M_WALLS];N_WALLS];
-        let vertical = [[IsVisible::Visible;N_WALLS];M_WALLS];
+        let horizontal = GenericGrid::<M_WALLS,N_WALLS>::new();
+        let vertical = GenericGrid::<N_WALLS,M_WALLS>::new();
         Self { horizontal, vertical }
     }
-    pub fn get_visibility(&self,pos: [usize;2], orientation: Orientation)->Option<IsVisible>{
-        let row = match orientation{
-            Orientation::Horizontal => self.horizontal.get(pos[0]),
-            Orientation::Vertical => self.horizontal.get(pos[0]),
-        }?;
-        match row.get(pos[1]){
-            Some(v) => Some(*v),
-            None => None,
+    pub fn get_visibility(&self,pos: Pos, orientation: Orientation)->Option<IsVisible>{
+        match orientation{
+            Orientation::Horizontal => self.horizontal.get_visibility(pos),
+            Orientation::Vertical => self.vertical.get_visibility(pos),
         }
+
     }
-    pub fn set_visible(&mut self, pos: [usize;2], orientation: Orientation)->bool{
-        let row = match orientation{
-            Orientation::Horizontal => self.horizontal.get_mut(pos[0]),
-            Orientation::Vertical => self.horizontal.get_mut(pos[0]),
-        };
-        if row.is_none(){
-            return false;
+    pub fn set_visible(&mut self, pos: Pos, orientation: Orientation)->bool{
+        match orientation{
+            Orientation::Horizontal => self.horizontal.set_visible(pos),
+            Orientation::Vertical => self.vertical.set_visible(pos),
         }
-        let row = row.unwrap();
-        match row.get_mut(pos[1]){
-            Some(v) => {
-                *v = IsVisible::Visible;
-                true
-            },
-            None => false,
-        }
+
     }
-    pub fn set_invisible(&mut self, pos: [usize;2], orientation: Orientation)->bool{
-        let row = match orientation{
-            Orientation::Horizontal => self.horizontal.get_mut(pos[0]),
-            Orientation::Vertical => self.horizontal.get_mut(pos[0]),
-        };
-        if row.is_none(){
-            return false;
+    pub fn set_invisible(&mut self, pos: Pos, orientation: Orientation)->bool{
+        match orientation{
+            Orientation::Horizontal => self.horizontal.set_invisible(pos),
+            Orientation::Vertical => self.vertical.set_invisible(pos),
         }
-        let row = row.unwrap();
-        match row.get_mut(pos[1]){
-            Some(v) => {
-                *v = IsVisible::Invisible;
-                true
-            },
-            None => false,
+
+    }
+    pub fn get_visible_coords(&self, orientation: Orientation)->Vec<Pos>{
+        match orientation{
+            Orientation::Horizontal => self.horizontal.get_visible_coords(),
+            Orientation::Vertical => self.vertical.get_visible_coords(),
         }
-    }
-    pub fn get_visible_coords_horizontal(&self)->Vec<[usize;2]>{
-        self.horizontal.iter().enumerate().flat_map(|(x,row)|{
-            row.iter().enumerate().filter_map(move |(y, point)|{
-                if *point == IsVisible::Visible{
-                    Some([x,y])
-                }else{
-                    None
-                }
-            })
-        }).collect()
-    }
-    pub fn get_visible_coords_vertical(&self)->Vec<[usize;2]>{
-        self.vertical.iter().enumerate().flat_map(|(x,row)|{
-            row.iter().enumerate().filter_map(move |(y, point)|{
-                if *point == IsVisible::Visible{
-                    Some([x,y])
-                }else{
-                    None
-                }
-            })
-        }).collect()
     }
 }
 #[derive(Component, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -264,15 +307,16 @@ pub enum Player{
     B,
     None
 }
+type Pos = [usize;2];
 
-fn grid_gizmos(mut gizmos: Gizmos){
+fn grid_gizmos(mut gizmos: Gizmos, mouse_movement:Query<&Window, With<PrimaryWindow>> ){
     let wall_grid = WallGrid::new();
     for image_position in initial_tile_positions_tile(){
         gizmos.rect(image_position, Vec2::new(TILE_WIDTH, TILE_WIDTH), GREEN);
     }
     let width = TILE_WIDTH -4.0;
     let height = 1.0;
-    for [x,y] in wall_grid.get_visible_coords_horizontal(){
+    for [x,y] in wall_grid.get_visible_coords(Orientation::Horizontal){
         let a1 = x as i32 - (N_TILES)/2;
         let b1 = y as i32 - (N_TILES)/2;
         let a2 = a1 as f32 * STEP_SIZE - TRENCH_WIDTH - TILE_WIDTH/2f32;
@@ -283,7 +327,7 @@ fn grid_gizmos(mut gizmos: Gizmos){
     for circle_pos in initial_tile_positions_wall_circle().into_iter().skip(1){
         gizmos.circle(circle_pos, 5.0, RED);
     }
-    for [x,y] in wall_grid.get_visible_coords_vertical(){
+    for [x,y] in wall_grid.get_visible_coords(Orientation::Vertical){
         let a1 = x as i32 - (N_TILES)/2;
         let b1 = y as i32 - (N_TILES)/2;
         let a2 = a1 as f32 * STEP_SIZE - TRENCH_WIDTH/2f32;
@@ -291,6 +335,20 @@ fn grid_gizmos(mut gizmos: Gizmos){
         let pos = Vec3::new( a2,b2, 1.0);
         gizmos.rect(pos, Vec2::new(height, width), RED);
     }
+    let window = mouse_movement.single();
+    if let Some(position) = window.cursor_position(){
+        let v = Vec3::new(position.x, position.y, 1.0);
+        let a = pos_to_tile(tile_to_pos(v));
+        println!("{v:?}, {a:?}");
+        let b = pos_to_wall_horizontal(wall_horizontal_to_pos(v));
+        let c = pos_to_wall_vertical(wall_vertical_to_pos(v));
+        let d = pos_to_wall_cirlce(wall_circle_to_pos(v));
+        for point in [a,b,c,d].iter(){
+            gizmos.circle(*point, 5.0, PURPLE);
+        }
+    }
+
+    
 }
 
 fn move_cursor(mut cursor: Query<&mut Transform, With<MouseIdentifier>>, mouse_movement:Query<&Window, With<PrimaryWindow>>){
@@ -336,4 +394,43 @@ pub fn central_light(mut commands: Commands){
             shadows_enabled: true,
             ..default()
     }, Transform::from_xyz(0.0, 0.0, 0.0)));
+}
+
+#[cfg(test)]
+mod main_tests{
+    use super::*;
+    const X: f32 = -9f32;
+    const Y: f32 = 2f32;
+    #[test]
+    fn converstion_test_horizontal(){
+        let v = Vec3::new(X, Y, 0.0);
+        let a = wall_horizontal_to_pos(v);
+        let b = pos_to_wall_horizontal(a);
+        let c = wall_horizontal_to_pos(b);
+        assert_eq!(a,c)
+    }
+    #[test]
+    fn converstion_test_vertical(){
+        let v = Vec3::new(X, Y, 0.0);
+        let a = wall_vertical_to_pos(v);
+        let b = pos_to_wall_vertical(a);
+        let c = wall_vertical_to_pos(b);
+        assert_eq!(a,c)
+    }
+    #[test]
+    fn converstion_test_circle(){
+        let v = Vec3::new(X, Y, 0.0);
+        let a = wall_circle_to_pos(v);
+        let b = pos_to_wall_cirlce(a);
+        let c = wall_circle_to_pos(b);
+        assert_eq!(a,c)
+    }
+    #[test]
+    fn converstion_test_tile(){
+        let v = Vec3::new(X, Y, 0.0);
+        let a = tile_to_pos(v);
+        let b = pos_to_tile(a);
+        let c = tile_to_pos(b);
+        assert_eq!(a,c)
+    }
 }
