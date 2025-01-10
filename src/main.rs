@@ -90,101 +90,143 @@ mod orientation{
         }
     }
 }
-fn pos_to_vec3(pos: Pos, xmod: f32, ymod: f32)->Vec3{
-    let [x,y] = pos;
-    let a1 = x as i32 - (N_TILES/2);
-    let b1 = y as i32 - (N_TILES/2);
-    let a2 = a1 as f32 * STEP_SIZE - TRENCH_WIDTH + xmod;
-    let b2 = b1 as f32 * STEP_SIZE - TRENCH_WIDTH + ymod;
-    let pos = Vec3::new( a2,b2, 0.0);
-    pos
-}
-fn vec3_to_pos(v: Vec3, xmod: f32, ymod: f32)->Pos{
-    let a3 = v.x;
-    let b3 = v.y;
-    let a2 = (a3 + TRENCH_WIDTH - xmod) / STEP_SIZE;
-    let b2 = (b3 + TRENCH_WIDTH - ymod) / STEP_SIZE;
-    let a1 = (a2 as i32) + (N_TILES*2) + (1-N_TILES%2);
-    let b1 = (b2 as i32) + (N_TILES*2) + (1-N_TILES%2);
-    let x = a1 as usize;
-    let y = b1 as usize;
-    [x,y]
-}
+type Pos = [usize;2];
+mod pos_mod{
+    use super::*;
+    pub fn pos_to_vec3(pos: Pos, xmod: f32, ymod: f32)->Vec3{
+        let [x,y] = pos;
+        let a1 = x as i32 - (N_TILES/2);
+        let b1 = y as i32 - (N_TILES/2);
+        let a2 = a1 as f32 * STEP_SIZE - TRENCH_WIDTH + xmod;
+        let b2 = b1 as f32 * STEP_SIZE - TRENCH_WIDTH + ymod;
+        let pos = Vec3::new( a2,b2, 0.0);
+        pos
+    }
+    pub fn vec3_to_pos(v: Vec3, xmod: f32, ymod: f32)->Pos{
+        let a3 = v.x;
+        let b3 = v.y;
+        let a2 = (a3 + TRENCH_WIDTH - xmod) / STEP_SIZE;
+        let b2 = (b3 + TRENCH_WIDTH - ymod) / STEP_SIZE;
+        let a1 = (a2 as i32) + (N_TILES*2) + (1-N_TILES%2);
+        let b1 = (b2 as i32) + (N_TILES*2) + (1-N_TILES%2);
+        let x = a1 as usize;
+        let y = b1 as usize;
+        [x,y]
+    }
 
-fn tile_to_pos(v: Vec3)->Pos{
-    let xmod = - TILE_WIDTH/2f32;
-    let ymod = - TILE_WIDTH/2f32;
-    vec3_to_pos(v, xmod, ymod)
-}
-fn wall_horizontal_to_pos(v: Vec3)->Pos{
-    let xmod = - TILE_WIDTH/2f32;
-    let ymod = TRENCH_WIDTH/2f32;
-    vec3_to_pos(v, xmod, ymod)
-}
-fn wall_vertical_to_pos(v: Vec3)->Pos{
-    let xmod = TILE_WIDTH/2f32;
-    let ymod = -TRENCH_WIDTH/2f32;
-    vec3_to_pos(v, xmod, ymod)
-}
-fn wall_circle_to_pos(v: Vec3)->Pos{
-    let xmod = TRENCH_WIDTH/2f32;
-    let ymod = TRENCH_WIDTH/2f32;
-    vec3_to_pos(v, xmod, ymod)
-}
+    pub fn tile_to_pos(v: Vec3)->Pos{
+        let xmod = - TILE_WIDTH/2f32;
+        let ymod = - TILE_WIDTH/2f32;
+        vec3_to_pos(v, xmod, ymod)
+    }
+    pub fn wall_horizontal_to_pos(v: Vec3)->Pos{
+        let xmod = - TILE_WIDTH/2f32;
+        let ymod = TRENCH_WIDTH/2f32;
+        vec3_to_pos(v, xmod, ymod)
+    }
+    pub fn wall_vertical_to_pos(v: Vec3)->Pos{
+        let xmod = TILE_WIDTH/2f32;
+        let ymod = -TRENCH_WIDTH/2f32;
+        vec3_to_pos(v, xmod, ymod)
+    }
+    pub fn wall_circle_to_pos(v: Vec3)->Pos{
+        let xmod = TRENCH_WIDTH/2f32;
+        let ymod = TRENCH_WIDTH/2f32;
+        vec3_to_pos(v, xmod, ymod)
+    }
 
 
-fn pos_to_tile(pos: Pos)->Vec3{
-    let xmod = - TILE_WIDTH/2f32;
-    let ymod = - TILE_WIDTH/2f32;
-    pos_to_vec3(pos, xmod, ymod)
-}
+    pub fn pos_to_tile(pos: Pos)->Vec3{
+        let xmod = - TILE_WIDTH/2f32;
+        let ymod = - TILE_WIDTH/2f32;
+        pos_to_vec3(pos, xmod, ymod)
+    }
 
-fn pos_to_wall_horizontal(pos: Pos)->Vec3{
-    let xmod = - TILE_WIDTH/2f32;
-    let ymod = TRENCH_WIDTH/2f32;
-    pos_to_vec3(pos, xmod, ymod)
-}
+    pub fn pos_to_wall_horizontal(pos: Pos)->Vec3{
+        let xmod = - TILE_WIDTH/2f32;
+        let ymod = TRENCH_WIDTH/2f32;
+        pos_to_vec3(pos, xmod, ymod)
+    }
 
-fn pos_to_wall_vertical(pos: Pos)->Vec3{
-    let xmod = TILE_WIDTH/2f32;
-    let ymod = -TRENCH_WIDTH/2f32;
-    pos_to_vec3(pos, xmod, ymod)
-}
+    pub fn pos_to_wall_vertical(pos: Pos)->Vec3{
+        let xmod = TILE_WIDTH/2f32;
+        let ymod = -TRENCH_WIDTH/2f32;
+        pos_to_vec3(pos, xmod, ymod)
+    }
 
-fn pos_to_wall_cirlce(pos: Pos)->Vec3{
-    let xmod = TRENCH_WIDTH/2f32;
-    let ymod = TRENCH_WIDTH/2f32;
-    pos_to_vec3(pos, xmod, ymod)
-}
+    pub fn pos_to_wall_cirlce(pos: Pos)->Vec3{
+        let xmod = TRENCH_WIDTH/2f32;
+        let ymod = TRENCH_WIDTH/2f32;
+        pos_to_vec3(pos, xmod, ymod)
+    }
 
-pub fn initial_tile_positions_tile()->Vec<Vec3>{
-    (0..N_TILES).flat_map(|x| (0..N_TILES).map(move |y| {
-        pos_to_tile([x as usize, y as usize])
-    })).collect()
-}
+    pub fn initial_tile_positions_tile()->Vec<Vec3>{
+        (0..N_TILES).flat_map(|x| (0..N_TILES).map(move |y| {
+            pos_to_tile([x as usize, y as usize])
+        })).collect()
+    }
 
-pub fn initial_tile_positions_wall_horizontal()->Vec<Vec3>{
-    (0..N_TILES).flat_map(|x| {
-        (0..N_TILES-1).map(move |y| {
-            pos_to_wall_horizontal([x as usize, y as usize])
-        })
-    }).collect()
-}
+    pub fn initial_tile_positions_wall_horizontal()->Vec<Vec3>{
+        (0..N_TILES).flat_map(|x| {
+            (0..N_TILES-1).map(move |y| {
+                pos_to_wall_horizontal([x as usize, y as usize])
+            })
+        }).collect()
+    }
 
-pub fn initial_tile_positions_wall_vertical()->Vec<Vec3>{
-    (0..N_TILES-1).flat_map(|x| {
-        (0..N_TILES).map(move |y| {
-            pos_to_wall_vertical([x as usize, y as usize])
-        })
-    }).collect()
-}
+    pub fn initial_tile_positions_wall_vertical()->Vec<Vec3>{
+        (0..N_TILES-1).flat_map(|x| {
+            (0..N_TILES).map(move |y| {
+                pos_to_wall_vertical([x as usize, y as usize])
+            })
+        }).collect()
+    }
 
-pub fn initial_tile_positions_wall_circle()->Vec<Vec3>{
-    (0..N_TILES-1).flat_map(|x| {
-        (0..N_TILES-1).map(move |y| {
-            pos_to_wall_cirlce([x as usize, y as usize])
-        })
-    }).collect()
+    pub fn initial_tile_positions_wall_circle()->Vec<Vec3>{
+        (0..N_TILES-1).flat_map(|x| {
+            (0..N_TILES-1).map(move |y| {
+                pos_to_wall_cirlce([x as usize, y as usize])
+            })
+        }).collect()
+    }
+    #[cfg(test)]
+    mod pos_tests{
+        use super::*;
+        const X: f32 = -9f32;
+        const Y: f32 = 2f32;
+        #[test]
+        fn converstion_test_horizontal(){
+            let v = Vec3::new(X, Y, 0.0);
+            let a = wall_horizontal_to_pos(v);
+            let b = pos_to_wall_horizontal(a);
+            let c = wall_horizontal_to_pos(b);
+            assert_eq!(a,c)
+        }
+        #[test]
+        fn converstion_test_vertical(){
+            let v = Vec3::new(X, Y, 0.0);
+            let a = wall_vertical_to_pos(v);
+            let b = pos_to_wall_vertical(a);
+            let c = wall_vertical_to_pos(b);
+            assert_eq!(a,c)
+        }
+        #[test]
+        fn converstion_test_circle(){
+            let v = Vec3::new(X, Y, 0.0);
+            let a = wall_circle_to_pos(v);
+            let b = pos_to_wall_cirlce(a);
+            let c = wall_circle_to_pos(b);
+            assert_eq!(a,c)
+        }
+        #[test]
+        fn converstion_test_tile(){
+            let v = Vec3::new(X, Y, 0.0);
+            let a = tile_to_pos(v);
+            let b = pos_to_tile(a);
+            let c = tile_to_pos(b);
+            assert_eq!(a,c)
+        }
+    }
 }
 
 pub fn setup(
@@ -307,8 +349,8 @@ pub enum Player{
     B,
     None
 }
-type Pos = [usize;2];
 
+use pos_mod::*;
 fn grid_gizmos(mut gizmos: Gizmos, mouse_movement:Query<&Window, With<PrimaryWindow>> ){
     let wall_grid = WallGrid::new();
     for image_position in initial_tile_positions_tile(){
@@ -398,39 +440,39 @@ pub fn central_light(mut commands: Commands){
 
 #[cfg(test)]
 mod main_tests{
-    use super::*;
-    const X: f32 = -9f32;
-    const Y: f32 = 2f32;
-    #[test]
-    fn converstion_test_horizontal(){
-        let v = Vec3::new(X, Y, 0.0);
-        let a = wall_horizontal_to_pos(v);
-        let b = pos_to_wall_horizontal(a);
-        let c = wall_horizontal_to_pos(b);
-        assert_eq!(a,c)
-    }
-    #[test]
-    fn converstion_test_vertical(){
-        let v = Vec3::new(X, Y, 0.0);
-        let a = wall_vertical_to_pos(v);
-        let b = pos_to_wall_vertical(a);
-        let c = wall_vertical_to_pos(b);
-        assert_eq!(a,c)
-    }
-    #[test]
-    fn converstion_test_circle(){
-        let v = Vec3::new(X, Y, 0.0);
-        let a = wall_circle_to_pos(v);
-        let b = pos_to_wall_cirlce(a);
-        let c = wall_circle_to_pos(b);
-        assert_eq!(a,c)
-    }
-    #[test]
-    fn converstion_test_tile(){
-        let v = Vec3::new(X, Y, 0.0);
-        let a = tile_to_pos(v);
-        let b = pos_to_tile(a);
-        let c = tile_to_pos(b);
-        assert_eq!(a,c)
-    }
+    // use super::*;
+    // const X: f32 = -9f32;
+    // const Y: f32 = 2f32;
+    // #[test]
+    // fn converstion_test_horizontal(){
+    //     let v = Vec3::new(X, Y, 0.0);
+    //     let a = wall_horizontal_to_pos(v);
+    //     let b = pos_to_wall_horizontal(a);
+    //     let c = wall_horizontal_to_pos(b);
+    //     assert_eq!(a,c)
+    // }
+    // #[test]
+    // fn converstion_test_vertical(){
+    //     let v = Vec3::new(X, Y, 0.0);
+    //     let a = wall_vertical_to_pos(v);
+    //     let b = pos_to_wall_vertical(a);
+    //     let c = wall_vertical_to_pos(b);
+    //     assert_eq!(a,c)
+    // }
+    // #[test]
+    // fn converstion_test_circle(){
+    //     let v = Vec3::new(X, Y, 0.0);
+    //     let a = wall_circle_to_pos(v);
+    //     let b = pos_to_wall_cirlce(a);
+    //     let c = wall_circle_to_pos(b);
+    //     assert_eq!(a,c)
+    // }
+    // #[test]
+    // fn converstion_test_tile(){
+    //     let v = Vec3::new(X, Y, 0.0);
+    //     let a = tile_to_pos(v);
+    //     let b = pos_to_tile(a);
+    //     let c = tile_to_pos(b);
+    //     assert_eq!(a,c)
+    // }
 }
