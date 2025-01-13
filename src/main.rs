@@ -2,7 +2,7 @@
 mod move_directions;
 // mod original_game_logic;
 
-use core::panic;
+use core::{f32, panic};
 use std::f32::consts::PI;
 
 use bevy::{color::palettes::css, gizmos::gizmos};
@@ -93,25 +93,31 @@ mod orientation{
 type Pos = [usize;2];
 mod pos_mod{
     use super::*;
+    fn pos_to_vec_component(x: usize, modifier: f32)->f32{
+        let x = x as i32 - (N_TILES/2);
+        let x = x as f32 * STEP_SIZE;
+        let x = x - TRENCH_WIDTH + modifier;
+        x as f32
+    }
+
     pub fn pos_to_vec3(pos: Pos, xmod: f32, ymod: f32)->Vec3{
-        let [x,y] = pos;
-        let a1 = x as i32 - (N_TILES/2);
-        let b1 = y as i32 - (N_TILES/2);
-        let a2 = a1 as f32 * STEP_SIZE - TRENCH_WIDTH + xmod;
-        let b2 = b1 as f32 * STEP_SIZE - TRENCH_WIDTH + ymod;
-        let pos = Vec3::new( a2,b2, 0.0);
+        let x = pos_to_vec_component(pos[0],xmod);
+        let y = pos_to_vec_component(pos[1],ymod);
+        let pos = Vec3::new( x, y,0.0);
         pos
     }
+
+    fn vec_to_pos_component(x: f32, modifier: f32)->usize{
+        let x = x + TRENCH_WIDTH - modifier;
+        let x = x / STEP_SIZE;
+        let x = (x as i32) + (N_TILES/2) + (1-N_TILES%2);
+        x as usize
+    }
+
     pub fn vec3_to_pos(v: Vec3, xmod: f32, ymod: f32)->Pos{
-        let a3 = v.x;
-        let b3 = v.y;
-        let a2 = (a3 + TRENCH_WIDTH - xmod) / STEP_SIZE;
-        let b2 = (b3 + TRENCH_WIDTH - ymod) / STEP_SIZE;
-        let a1 = (a2 as i32) + (N_TILES*2) + (1-N_TILES%2);
-        let b1 = (b2 as i32) + (N_TILES*2) + (1-N_TILES%2);
-        let x = a1 as usize;
-        let y = b1 as usize;
-        [x,y]
+        let x = vec_to_pos_component(v.x, xmod);
+        let y = vec_to_pos_component(v.y, ymod);
+        [x as usize, y as usize]
     }
 
     pub fn tile_to_pos(v: Vec3)->Pos{
@@ -134,7 +140,6 @@ mod pos_mod{
         let ymod = TRENCH_WIDTH/2f32;
         vec3_to_pos(v, xmod, ymod)
     }
-
 
     pub fn pos_to_tile(pos: Pos)->Vec3{
         let xmod = - TILE_WIDTH/2f32;
@@ -192,15 +197,15 @@ mod pos_mod{
     #[cfg(test)]
     mod pos_tests{
         use super::*;
-        const X: f32 = -9f32;
-        const Y: f32 = 2f32;
+        const X: f32 = -932f32;
+        const Y: f32 = 733f32;
         #[test]
         fn converstion_test_horizontal(){
             let v = Vec3::new(X, Y, 0.0);
             let a = wall_horizontal_to_pos(v);
             let b = pos_to_wall_horizontal(a);
             let c = wall_horizontal_to_pos(b);
-            assert_eq!(a,c)
+            assert_eq!(a,c,"{v:?}, {a:?}, {b:?}, {c:?}")
         }
         #[test]
         fn converstion_test_vertical(){
@@ -208,7 +213,7 @@ mod pos_mod{
             let a = wall_vertical_to_pos(v);
             let b = pos_to_wall_vertical(a);
             let c = wall_vertical_to_pos(b);
-            assert_eq!(a,c)
+            assert_eq!(a,c,"{v:?}, {a:?}, {b:?}, {c:?}")
         }
         #[test]
         fn converstion_test_circle(){
@@ -216,7 +221,7 @@ mod pos_mod{
             let a = wall_circle_to_pos(v);
             let b = pos_to_wall_cirlce(a);
             let c = wall_circle_to_pos(b);
-            assert_eq!(a,c)
+            assert_eq!(a,c,"{v:?}, {a:?}, {b:?}, {c:?}")
         }
         #[test]
         fn converstion_test_tile(){
@@ -224,8 +229,102 @@ mod pos_mod{
             let a = tile_to_pos(v);
             let b = pos_to_tile(a);
             let c = tile_to_pos(b);
-            assert_eq!(a,c)
+            assert_eq!(a,c,"{v:?}, {a:?}, {b:?}, {c:?}")
         }
+    }
+}
+
+#[derive(Debug,Clone,Copy)]
+enum GridType{
+    Tile,
+    Cirle,
+    Horizontal,
+    Vertical
+}
+#[derive(Clone,Debug, Component)]
+struct GizmoStruct{
+    xmod: f32,
+    ymod: f32,
+    vec: Vec3,
+    pos: Pos,
+    grid_type: GridType,
+}
+impl GizmoStruct{
+    pub fn new_float(x: f32, y: f32, grid_type: GridType)->Self{
+        let (xmod, ymod) = match grid_type{
+            GridType::Tile => (- TILE_WIDTH/2f32, - TILE_WIDTH/2f32),
+            GridType::Cirle => (TRENCH_WIDTH/2f32,TRENCH_WIDTH/2f32),
+            GridType::Horizontal => (- TILE_WIDTH/2f32, TRENCH_WIDTH/2f32),
+            GridType::Vertical => ( TILE_WIDTH/2f32, -TRENCH_WIDTH/2f32),
+        };
+        let pos = vec3_to_pos(Vec3::new(x, y, 0.0), xmod, ymod);
+        let vec = pos_to_tile([x as usize, y as usize]);
+        Self { xmod, ymod, vec, pos, grid_type }
+    }
+    pub fn new_usize(x: usize, y: usize, grid_type: GridType)->Self{
+        let (xmod, ymod) = match grid_type{
+            GridType::Tile => (- TILE_WIDTH/2f32, - TILE_WIDTH/2f32),
+            GridType::Cirle => (TRENCH_WIDTH/2f32,TRENCH_WIDTH/2f32),
+            GridType::Horizontal => (- TILE_WIDTH/2f32, TRENCH_WIDTH/2f32),
+            GridType::Vertical => ( TILE_WIDTH/2f32, -TRENCH_WIDTH/2f32),
+        };
+        let pos = [x,y];
+        let vec = pos_to_tile([x as usize, y as usize]);
+        Self { xmod, ymod, vec, pos, grid_type }
+    }
+    pub fn xmod(&self)-> f32{
+        self.xmod
+    }
+    pub fn ymod(&self)-> f32{
+        self.ymod
+    }
+    pub fn vec(&self)-> &Vec3{
+        &self.vec
+    }
+    pub fn pos(&self)-> &Pos{
+        &self.pos
+    }
+    pub fn initials(grid_type: GridType)->Vec<Self>{
+        match grid_type{
+            GridType::Tile => {
+                (0..N_TILES).flat_map(|x| (0..N_TILES).map(move |y| {
+                    Self::new_usize(x as usize, y as usize, grid_type)
+                })).collect()
+            },
+            GridType::Cirle => {
+                (0..N_TILES-1).flat_map(|x| {
+                    (0..N_TILES-1).map(move |y| {
+                        Self::new_usize(x as usize, y as usize, grid_type)
+                    })
+                }).collect()
+            },
+            GridType::Horizontal => {
+                (0..N_TILES).flat_map(|x| {
+                    (0..N_TILES-1).map(move |y| {
+                        Self::new_usize(x as usize, y as usize, grid_type)
+                    })
+                }).collect()
+            },
+            GridType::Vertical => {
+                (0..N_TILES-1).flat_map(|x| {
+                    (0..N_TILES).map(move |y| {
+                        Self::new_usize(x as usize, y as usize, grid_type)
+                    })
+                }).collect()
+            },
+        }
+
+    }
+    pub fn draw_gizmo(&self, mut gizmos: Gizmos){
+        let point = *self.vec();
+        let width = TILE_WIDTH -4.0;
+        let height = 1.0;
+        match self.grid_type{
+            GridType::Tile => gizmos.rect(point, Vec2::new(TILE_WIDTH, TILE_WIDTH), GREEN),
+            GridType::Cirle => todo!(),
+            GridType::Horizontal => gizmos.rect(point, Vec2::new(width, height), RED),
+            GridType::Vertical => gizmos.rect(point, Vec2::new(height, width), RED),
+        };
     }
 }
 
@@ -367,7 +466,7 @@ fn grid_gizmos(mut gizmos: Gizmos, mouse_movement:Query<&Window, With<PrimaryWin
         gizmos.rect(pos, Vec2::new(width, height), RED);
     }
     for circle_pos in initial_tile_positions_wall_circle().into_iter().skip(1){
-        gizmos.circle(circle_pos, 5.0, RED);
+        gizmos.circle(circle_pos, 5.0, GREEN);
     }
     for [x,y] in wall_grid.get_visible_coords(Orientation::Vertical){
         let a1 = x as i32 - (N_TILES)/2;
@@ -379,14 +478,15 @@ fn grid_gizmos(mut gizmos: Gizmos, mouse_movement:Query<&Window, With<PrimaryWin
     }
     let window = mouse_movement.single();
     if let Some(position) = window.cursor_position(){
-        let v = Vec3::new(position.x, position.y, 1.0);
+        let v = Vec3::new(position.x, -position.y, 1.0) + Vec3::new(-600.0, 400.0, 0.0) - Vec3::new(STEP_SIZE/2.0, STEP_SIZE/2.0, 0.0);
         let a = pos_to_tile(tile_to_pos(v));
-        println!("{v:?}, {a:?}");
         let b = pos_to_wall_horizontal(wall_horizontal_to_pos(v));
         let c = pos_to_wall_vertical(wall_vertical_to_pos(v));
         let d = pos_to_wall_cirlce(wall_circle_to_pos(v));
+        println!("{v:?}, {a:?}");
         for point in [a,b,c,d].iter(){
             gizmos.circle(*point, 5.0, PURPLE);
+            gizmos.line(v, *point, RED);
         }
     }
 
@@ -440,39 +540,5 @@ pub fn central_light(mut commands: Commands){
 
 #[cfg(test)]
 mod main_tests{
-    // use super::*;
-    // const X: f32 = -9f32;
-    // const Y: f32 = 2f32;
-    // #[test]
-    // fn converstion_test_horizontal(){
-    //     let v = Vec3::new(X, Y, 0.0);
-    //     let a = wall_horizontal_to_pos(v);
-    //     let b = pos_to_wall_horizontal(a);
-    //     let c = wall_horizontal_to_pos(b);
-    //     assert_eq!(a,c)
-    // }
-    // #[test]
-    // fn converstion_test_vertical(){
-    //     let v = Vec3::new(X, Y, 0.0);
-    //     let a = wall_vertical_to_pos(v);
-    //     let b = pos_to_wall_vertical(a);
-    //     let c = wall_vertical_to_pos(b);
-    //     assert_eq!(a,c)
-    // }
-    // #[test]
-    // fn converstion_test_circle(){
-    //     let v = Vec3::new(X, Y, 0.0);
-    //     let a = wall_circle_to_pos(v);
-    //     let b = pos_to_wall_cirlce(a);
-    //     let c = wall_circle_to_pos(b);
-    //     assert_eq!(a,c)
-    // }
-    // #[test]
-    // fn converstion_test_tile(){
-    //     let v = Vec3::new(X, Y, 0.0);
-    //     let a = tile_to_pos(v);
-    //     let b = pos_to_tile(a);
-    //     let c = tile_to_pos(b);
-    //     assert_eq!(a,c)
-    // }
+    use super::*;
 }
