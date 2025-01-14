@@ -1,8 +1,9 @@
 mod position_conversion;
-use bevy_mod_raycast::prelude::{Raycast, RaycastSettings};
-use position_conversion::{pos_to_tile, pos_to_vec3, pos_to_wall_cirlce, pos_to_wall_horizontal, pos_to_wall_vertical, tile_to_pos, vec3_to_pos, wall_circle_to_pos, wall_horizontal_to_pos, wall_vertical_to_pos, Pos};
+use bevy::asset::RenderAssetUsages;
+use bevy::picking::focus::PickingInteraction;
+use bevy::picking::pointer::PointerInteraction;
+use position_conversion::{pos_to_vec3, vec3_to_pos, Pos};
 pub use bevy::prelude::*;
-pub use bevy_mod_raycast::prelude::*;
 pub use bevy::color::palettes::css::*;
 pub use bevy::input::mouse::MouseMotion;
 use bevy::window::PrimaryWindow;
@@ -18,17 +19,18 @@ fn main() {
     unsafe {std::env::set_var("WGPU_BACKEND", "vk");}
     App::new()
         .add_plugins(DefaultPlugins)
+        .add_plugins(MeshPickingPlugin)
         .insert_resource(ClearColor(SKY_COLOR))
         .init_gizmo_group::<MyGizmos>()
         .add_systems(Startup,   setup)
-        .add_systems(Update, mouse_ray_update)
-        .add_systems(Update, move_cursor)
-        .add_systems(Update,draw_gizmos)
-        .add_systems(Update, mouse_visualization)
+        // .add_systems(Update, mouse_ray_update)
+        .add_systems(Update, draw_gizmos)
+        .add_systems(Update, move_cursor,)
+        // .add_systems(Update, mouse_visualization)
         .run();
 }
 
-#[derive(Debug,Clone,Copy)]
+#[derive(Debug,Clone,Copy, PartialEq, Eq)]
 pub enum GridType{
     Tile,
     Cirle,
@@ -40,15 +42,37 @@ impl GridType{
         vec![Self::Tile,Self::Cirle,Self::Horizontal,Self::Vertical]
     }
 }
-
+#[derive(Clone,Debug,Bundle)]
+pub struct GizmoStructBundle{
+    gs: GizmoStruct,
+    transform: Transform,
+    mesh_3d: Mesh3d,
+    material: MeshMaterial3d<StandardMaterial>
+}
+impl GizmoStructBundle{
+    pub fn new(gs: GizmoStruct, materials: &mut ResMut<Assets<StandardMaterial>>, meshes: &mut ResMut<Assets<Mesh>>)->Self{
+        let transform = Transform::from_translation(gs.vec());
+        let material = MeshMaterial3d(materials.add(Color::BLACK));
+        let shape = match gs.grid_type{
+            GridType::Tile => Cuboid::from_corners(gs.vec() - Vec3::new(TILE_WIDTH/2f32, TILE_WIDTH/2f32, 0.0), gs.vec() + Vec3::new(TILE_WIDTH/2f32, TILE_WIDTH/2f32, 4.0)),
+            GridType::Cirle => Cuboid::default(),
+            GridType::Horizontal => Cuboid::default(),
+            GridType::Vertical => Cuboid::default(),
+        };
+        let mesh_3d = Mesh3d(meshes.add(shape));
+        Self { gs, transform, mesh_3d, material }
+    }
+}
 
 #[derive(Clone, Debug, Component)]
+#[require(Mesh3d,Transform)]
 pub struct GizmoStruct{
     xmod: f32,
     ymod: f32,
     vec: Vec3,
     pos: Pos,
     grid_type: GridType,
+    is_visible: IsVisible,
 }
 
 impl GizmoStruct{
@@ -61,7 +85,8 @@ impl GizmoStruct{
         };
         let pos = vec3_to_pos(Vec3::new(x, y, 0.0), xmod, ymod);
         let vec = pos_to_vec3(pos, xmod, ymod);
-        Self { xmod, ymod, vec, pos, grid_type }
+        let is_visible = IsVisible::Invisible;
+        Self { xmod, ymod, vec, pos, grid_type, is_visible }
     }
     pub fn new_usize(x: usize, y: usize, grid_type: GridType)->Self{
         let (xmod, ymod) = match grid_type{
@@ -72,7 +97,8 @@ impl GizmoStruct{
         };
         let pos = [x,y];
         let vec = pos_to_vec3([x as usize, y as usize], xmod, ymod);
-        Self { xmod, ymod, vec, pos, grid_type }
+        let is_visible = IsVisible::Invisible;
+        Self { xmod, ymod, vec, pos, grid_type, is_visible }
     }
     pub fn xmod(&self)-> f32{
         self.xmod
@@ -134,7 +160,7 @@ impl GizmoStruct{
     }
 }
 
-pub fn setup( mut commands: Commands, asset_server: Res<AssetServer>){
+pub fn setup( mut commands: Commands, asset_server: Res<AssetServer>, mut materials: ResMut<Assets<StandardMaterial>>,mut meshes: ResMut<Assets<Mesh>>,){
     let cursor = asset_server.load("Cursor.png");
     commands.spawn(ControlledCamera::new());
     commands.spawn((
@@ -144,22 +170,60 @@ pub fn setup( mut commands: Commands, asset_server: Res<AssetServer>){
     ));
     for grid_type in GridType::all(){
         for initial in GizmoStruct::initials(grid_type){
-            commands.spawn(initial);
+            let x = initial.vec.x;
+            let y = initial.vec.y;
+            let z = initial.vec.z;
+            let gs = initial;
+            commands.spawn(GizmoStructBundle::new(gs, &mut materials, &mut meshes))
+                .observe(tag_visible)
+                .observe(tag_invisible);
         }
+    }
+}
+
+fn tag_visible(hit: Trigger<Pointer<Over>>, mut gs_query: Query<(Entity, &mut GizmoStruct)>){
+    let target = hit.target;
+    for (entity, mut gs) in gs_query.iter_mut(){
+        if target == entity && gs.grid_type != GridType::Tile{
+            gs.is_visible = IsVisible::Visible;
+        }
+    }
+}
+
+fn tag_invisible(hit: Trigger<Pointer<Out>>, mut gs_query: Query<(Entity, &mut GizmoStruct)>){
+    let target = hit.target;
+    for (entity, mut gs) in gs_query.iter_mut(){
+        if target == entity && gs.grid_type != GridType::Tile{
+            gs.is_visible = IsVisible::Invisible;
+        }
+    }
+}
+
+fn draw_mesh_intersections(pointers: Query<&PointerInteraction>, mut gizmos: Gizmos) {
+    for (point, normal) in pointers
+        .iter()
+        .filter_map(|interaction| interaction.get_nearest_hit())
+        .filter_map(|(_entity, hit)| hit.position.zip(hit.normal))
+    {
+        gizmos.sphere(point, 0.05, RED);
+        gizmos.arrow(point, point + normal.normalize() * 0.5, PINK);
     }
 }
 
 pub fn draw_gizmos(gs_query: Query<&GizmoStruct>, mut gizmos: Gizmos){
     for gs in gs_query.iter(){
-        gs.draw_gizmo(&mut gizmos);
+        if gs.is_visible == IsVisible::Visible || gs.grid_type ==  GridType::Tile{
+            gs.draw_gizmo(&mut gizmos);
+        }
     }
 }
 
-#[derive(Component, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Component, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug)]
 pub enum IsVisible{
     Visible,
     Invisible
 }
+
 #[derive(Component, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Player{
     A,
@@ -175,21 +239,12 @@ fn mouse_visualization(mut gizmos: Gizmos, mouse_movement:Query<&Window, With<Pr
         let b = GizmoStruct::new_float(v.x, v.y, GridType::Horizontal);
         let c = GizmoStruct::new_float(v.x, v.y, GridType::Vertical);
         let d = GizmoStruct::new_float(v.x, v.y, GridType::Cirle);
-        println!("{v:?}, {a:?}");
+        // println!("{v:?}, {a:?}");
         for gs in [a,b,c,d].iter(){
             let point = gs.vec();
             gizmos.circle(point, 5.0, PURPLE);
             gizmos.line(v, point, RED);
             gizmos.line(Vec3 { x: 0.0, y: 0.0, z: 0.0 }, point, BLACK);
-        }
-    }
-}
-fn mouse_ray_update(mut gizmos: Gizmos,  mut raycast: Raycast){
-    if let Some(ray) = CursorRay::default().0{
-        if let Some((entity,intersection_data)) = raycast.cast_ray(ray, &RaycastSettings::default()).first(){
-            let hit_pos = intersection_data.position();
-            let hit_quat = Quat::from_xyzw(hit_pos.x, hit_pos.y, hit_pos.z, 0.0);
-            gizmos.sphere(hit_quat, 5.0, YELLOW);
         }
     }
 }
@@ -202,9 +257,12 @@ fn move_cursor(mut cursor: Query<&mut Transform, With<MouseIdentifier>>, mouse_m
     }
 }
 
+fn on_click_print_hello(click: Trigger<Pointer<Click>>) {
+    println!("{} was clicked!", click.entity());
+}
+
 #[derive(Component)]
 pub struct MouseIdentifier;
-
 
 #[derive(Component)]
 pub struct ControlledCameraIndentifier;
@@ -212,7 +270,7 @@ pub struct ControlledCameraIndentifier;
 pub struct ControlledCamera{
     identifier: ControlledCameraIndentifier,
     camera: Camera,
-    render_graph: Camera2d,
+    render_graph: Camera3d,
     transform: Transform,
 }
 impl ControlledCamera{
@@ -221,9 +279,9 @@ impl ControlledCamera{
         println!("Making camera!");
         let identifier = ControlledCameraIndentifier;
         let camera = Camera::default();
-        let render_graph = Camera2d::default();
+        let render_graph = Camera3d::default();
         let mut transform = Transform{
-            translation: Vec3::new(0.0, 0.0, 10.0),
+            translation: Vec3::new(0.0, 0.0, 1000.0),
             ..default()
         };
         transform.look_at(Vec3::ZERO, Vec3::Y);
