@@ -21,6 +21,9 @@ impl MoveDirections{
     pub fn new_pressed(input: &Res<ButtonInput<KeyCode>>)->Self{
         [KeyCode::KeyW, KeyCode::KeyA, KeyCode::KeyS, KeyCode::KeyD].iter().map(|&key| input.pressed(key)).collect::<Vec<bool>>().into()
     }
+    pub fn new_event(input: &KeyboardInput)->Self{
+        [KeyCode::KeyW, KeyCode::KeyA, KeyCode::KeyS, KeyCode::KeyD].iter().map(|&key| key == input.key_code).collect::<Vec<bool>>().into()
+    }
 
     pub fn to_vec3(self)->Vec3{
         const NORTH: Vec3 = Vec3::Z;
