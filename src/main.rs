@@ -30,7 +30,7 @@ fn main() {
         .add_systems(FixedUpdate, move_camera)
         .add_systems(Update, rotate_light)
         .add_systems(Update, draw_gizmos)
-        .add_systems(Update, adjust_material_color)
+        // .add_systems(Update, adjust_material_color)
         // .add_systems(Update, move_player)
     .run();
 }
@@ -94,7 +94,8 @@ pub fn setup( mut commands: Commands, asset_server: Res<AssetServer>, mut materi
             commands.spawn(GizmoStructBundle::new(gs, &mut materials, &mut meshes))
                 .observe(tag_visible)
                 .observe(tag_invisible)
-                .observe(clickable_tile);
+                .observe(clickable_tile)
+                .observe(drop_on);
         }
     }
     let player_a = GizmoStruct::new_usize(2, 0, GridType::Tile);
@@ -112,7 +113,7 @@ pub fn setup( mut commands: Commands, asset_server: Res<AssetServer>, mut materi
             ..default()
         })),
         transform: Transform::from_translation(player_a.vec()),
-    }).observe(drag).observe(drop);
+    }).observe(drag).observe(drop_on);
 
     commands.spawn(MyPlayerBundle{
         my_player: MyPlayer{
@@ -126,7 +127,7 @@ pub fn setup( mut commands: Commands, asset_server: Res<AssetServer>, mut materi
             ..default()
         })),
         transform: Transform::from_translation(player_b.vec()),
-    }).observe(drag).observe(drop);
+    }).observe(drag).observe(drop_on);
 }
 
 fn rotate_light(time: Res<Time>, mut light_query: Query<&mut Transform, With<PointLight>>, mut gizmos: Gizmos){
@@ -156,11 +157,30 @@ fn drop(hit: Trigger<Pointer<DragEnd>>, mut player_query: Query<(Entity, &mut Tr
         }
         let current_x = target.translation.x;
         let current_y = target.translation.y;
-        let next = pos_to_vec3(vec3_to_pos(Vec3::new(current_x, current_y, 0.0), 0.0, 0.0), 0.0, 0.0);
+        let next = GizmoStruct::new_float(current_x, current_y, GridType::Tile).vec();
         println!("current: {:?}, next: {:?}",target.translation, next);
 
         target.translation = next;
     }
+}
+fn drop_on(hit: Trigger<Pointer<DragDrop>>, mut player_query: Query<(Entity, &mut Transform), (With<MyPlayer>, Without<GizmoStruct>)>, tile_query: Query<(Entity, &Transform), (With<GizmoStruct>, Without<MyPlayer>)>){
+    println!("\nDropOn triggered!");
+    let player_id = hit.dropped;
+    let tile_id = hit.target;
+    println!("{player_id}, {tile_id}");
+    let mut player = match player_query.iter_mut().find(|v| v.0 == tile_id).map(|v| v.1){
+        Some(v) => v,
+        None => return,
+    };
+    println!("player_found");
+    let tile = match tile_query.iter().find(|v| v.0 == player_id).map(|v| v.1){
+        Some(v) => v,
+        None => return,
+    };
+    println!("tile_found");
+    println!("Player: {:?}, Tile: {:?}", player.translation, tile.translation);
+    player.translation.x = tile.translation.x;
+    player.translation.y = tile.translation.y;
 }
 fn clickable_tile(hit: Trigger<Pointer<Click>>, mut gs_query: Query<(Entity, &mut GizmoStruct)>){
     let target = hit.target;
@@ -226,7 +246,7 @@ pub fn adjust_material_color(gs_query: Query<(&GizmoStruct, &MeshMaterial3d<Stan
     }
 }
 
-fn move_camera(mut events: EventReader<KeyboardInput>, time: Res<Time>, mut controlled_camera_query: Query<&mut Transform,With<ControlledCameraIndentifier>>) {
+fn move_camera(mut events: EventReader<KeyboardInput>, time: Res<Time>, mut controlled_camera_query: Query<&mut Transform, With<ControlledCameraIndentifier>>) {
     for event in events.read() {
         // Only check for characters when the key is pressed.
         if !event.state.is_pressed() {
