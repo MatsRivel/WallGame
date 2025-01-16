@@ -1,18 +1,18 @@
-#![feature(random)]
 mod position_conversion;
 mod game_board;
-use std::f32::consts::PI;
+mod camera;
+mod move_directions;
 
-use bevy::input::keyboard::{Key, KeyboardInput};
-use bevy::math::VectorSpace;
+use std::f32::consts::PI;
+use bevy::input::keyboard::KeyboardInput;
 use bevy::pbr::CascadeShadowConfigBuilder;
-use game_board::{GizmoStruct, GizmoStructBundle, GridType, MyGizmos};
+use camera::{ControlledCamera, ControlledCameraIndentifier};
+use game_board::{GizmoStruct, GizmoStructBundle, GridType, MyGizmos, Player};
 use move_directions::MoveDirections;
 use position_conversion::{pos_to_vec3, vec3_to_pos, Pos};
 pub use bevy::prelude::*;
 pub use bevy::color::palettes::css::*;
 pub use bevy::input::mouse::MouseMotion;
-use bevy::window::PrimaryWindow;
 const TILE_WIDTH: f32 = 64.0;
 const TRENCH_WIDTH: f32 = 8.0;
 const N_TILES: i32 = 5;
@@ -30,13 +30,13 @@ fn main() {
         .add_systems(FixedUpdate, move_camera)
         .add_systems(Update, rotate_light)
         .add_systems(Update, draw_gizmos)
-        .add_systems(Update, move_cursor,)
         .add_systems(Update, adjust_material_color)
+        // .add_systems(Update, move_player)
     .run();
 }
 
-pub fn setup( mut commands: Commands, asset_server: Res<AssetServer>, mut materials: ResMut<Assets<StandardMaterial>>,mut meshes: ResMut<Assets<Mesh>>,){
-    let cursor = asset_server.load("Cursor.png");
+pub fn setup( mut commands: Commands, asset_server: Res<AssetServer>, mut materials: ResMut<Assets<StandardMaterial>>,mut meshes: ResMut<Assets<Mesh>>){
+    // let cursor = asset_server.load("Cursor.png");
     commands.spawn(ControlledCamera::new());
     commands.spawn((
         PointLight{ 
@@ -54,6 +54,29 @@ pub fn setup( mut commands: Commands, asset_server: Res<AssetServer>, mut materi
             ..default()
         }.build()
     ));
+    // directional 'sun' light
+    commands.spawn((
+        DirectionalLight {
+            illuminance: light_consts::lux::OVERCAST_DAY,
+            shadows_enabled: true,
+            ..default()
+        },
+        Transform {
+            translation: Vec3::new(0.0, 0.0, 5.0),
+            rotation: Quat::from_rotation_x(-PI / 4.),
+            ..default()
+        },
+        // The default cascade config is designed to handle large scenes.
+        // As this example has a much smaller world, we can tighten the shadow
+        // bounds for better visual quality.
+        CascadeShadowConfigBuilder {
+            first_cascade_far_bound: 4.0,
+            maximum_distance: 10.0,
+            ..default()
+        }
+        .build(),
+    ));
+
     let plane_dims = (N_TILES as f32)*STEP_SIZE/2f32;
     // Ground Plane
     commands.spawn((
@@ -65,11 +88,6 @@ pub fn setup( mut commands: Commands, asset_server: Res<AssetServer>, mut materi
             ..default()
         })),
     ));
-    commands.spawn((
-        MouseIdentifier,
-        Transform::from_translation(Vec3::new(0.0, 0.0, 10.0)),
-        Sprite::from_image(cursor.clone()),
-    ));
     for grid_type in GridType::all(){
         for initial in GizmoStruct::initials(grid_type){
             let gs = initial;
@@ -79,20 +97,71 @@ pub fn setup( mut commands: Commands, asset_server: Res<AssetServer>, mut materi
                 .observe(clickable_tile);
         }
     }
+    let player_a = GizmoStruct::new_usize(2, 0, GridType::Tile);
+    let player_b = GizmoStruct::new_usize(2, (N_TILES-1) as usize, GridType::Tile);
+
+    commands.spawn(MyPlayerBundle{
+        my_player: MyPlayer{
+                player_id: Player::A,
+                pos: player_a.pos()
+            },
+        mesh: Mesh3d(meshes.add(Sphere::new(TILE_WIDTH/3f32).mesh())),
+        material: MeshMaterial3d(materials.add(StandardMaterial{ 
+            base_color: Color::srgb(0.0, 1.0, 0.0),
+            perceptual_roughness: 1.0,
+            ..default()
+        })),
+        transform: Transform::from_translation(player_a.vec()),
+    }).observe(drag).observe(drop);
+
+    commands.spawn(MyPlayerBundle{
+        my_player: MyPlayer{
+                player_id: Player::B,
+                pos: player_b.pos()
+            },
+        mesh: Mesh3d(meshes.add(Sphere::new(TILE_WIDTH/3f32).mesh())),
+        material: MeshMaterial3d(materials.add(StandardMaterial{ 
+            base_color: Color::srgb(1.0, 0.0, 0.0),
+            perceptual_roughness: 1.0,
+            ..default()
+        })),
+        transform: Transform::from_translation(player_b.vec()),
+    }).observe(drag).observe(drop);
 }
 
 fn rotate_light(time: Res<Time>, mut light_query: Query<&mut Transform, With<PointLight>>, mut gizmos: Gizmos){
-
     for mut light in light_query.iter_mut(){
-        let current_rot = light.rotation;
         let new_rot = Quat::from_rotation_z(((time.delta_secs()) / 25.0) * (360.0/(2.0*PI)));
         let new_rot = new_rot.normalize();
-        println!("-- {new_rot}");
         light.rotate_around(Vec3::ZERO,new_rot);
         gizmos.circle(Isometry3d::from_translation(light.translation), 5.0, WHITE);
     }
 }
+fn drag(hit: Trigger<Pointer<Drag>>, mut player_query: Query<(Entity, &mut Transform), With<MyPlayer>>){
+    let target_id = hit.target;
+    for (entity, mut target) in player_query.iter_mut(){
+        if target_id != entity{
+            continue;
+        }
+        let pointer_location = hit.delta;
+        target.translation += Vec3::new(pointer_location.x, -pointer_location.y, 0.0);
+    }
+}
+fn drop(hit: Trigger<Pointer<DragEnd>>, mut player_query: Query<(Entity, &mut Transform), With<MyPlayer>>){
+    println!("Drop triggered!");
+    let target_id = hit.target;
+    for (entity, mut target) in player_query.iter_mut(){
+        if target_id != entity{
+            continue;
+        }
+        let current_x = target.translation.x;
+        let current_y = target.translation.y;
+        let next = pos_to_vec3(vec3_to_pos(Vec3::new(current_x, current_y, 0.0), 0.0, 0.0), 0.0, 0.0);
+        println!("current: {:?}, next: {:?}",target.translation, next);
 
+        target.translation = next;
+    }
+}
 fn clickable_tile(hit: Trigger<Pointer<Click>>, mut gs_query: Query<(Entity, &mut GizmoStruct)>){
     let target = hit.target;
     for (entity, mut gs) in gs_query.iter_mut(){
@@ -116,7 +185,7 @@ fn clickable_tile(hit: Trigger<Pointer<Click>>, mut gs_query: Query<(Entity, &mu
 fn tag_visible(hit: Trigger<Pointer<Over>>, mut gs_query: Query<(Entity, &mut GizmoStruct)>){
     let target = hit.target;
     for (entity, mut gs) in gs_query.iter_mut(){
-        if target == entity && !gs.is_tile(){
+        if target == entity{
             gs.set_visible();
         }
     }
@@ -157,15 +226,6 @@ pub fn adjust_material_color(gs_query: Query<(&GizmoStruct, &MeshMaterial3d<Stan
     }
 }
 
-fn move_cursor(mut cursor: Query<&mut Transform, With<MouseIdentifier>>, mouse_movement:Query<&Window, With<PrimaryWindow>>){
-    let window = mouse_movement.single();
-    if let Some(position) = window.cursor_position(){
-        let corrected_position = Vec3::new(position.x -window.width()/2.0,   window.height()/2.0 - position.y,2.0);
-        cursor.single_mut().translation = corrected_position;
-    }
-}
-
-mod move_directions;
 fn move_camera(mut events: EventReader<KeyboardInput>, time: Res<Time>, mut controlled_camera_query: Query<&mut Transform,With<ControlledCameraIndentifier>>) {
     for event in events.read() {
         // Only check for characters when the key is pressed.
@@ -177,38 +237,21 @@ fn move_camera(mut events: EventReader<KeyboardInput>, time: Res<Time>, mut cont
         let mut cam = controlled_camera_query.single_mut();
         cam.translation += move_dir*25.0;
         *cam = cam.looking_at(Vec3::splat(0.0), Vec3::Y);
-
     }
-
 }
 
-#[derive(Component)]
-pub struct MouseIdentifier;
-
-#[derive(Component)]
-pub struct ControlledCameraIndentifier;
-#[derive(Bundle)]
-pub struct ControlledCamera{
-    identifier: ControlledCameraIndentifier,
-    camera: Camera,
-    render_graph: Camera3d,
-    transform: Transform,
+#[derive(Bundle,Debug)]
+pub struct MyPlayerBundle{
+    my_player: MyPlayer,
+    mesh: Mesh3d, 
+    material: MeshMaterial3d<StandardMaterial>, 
+    transform: Transform
 }
-
-impl ControlledCamera{
-    pub fn new()->Self{
-        #[cfg(debug_assertions)]
-        println!("Making camera!");
-        let identifier = ControlledCameraIndentifier;
-        let camera = Camera::default();
-        let render_graph = Camera3d::default();
-        let mut transform = Transform{
-            translation: Vec3::new(0.0, 0.0, 1000.0),
-            ..default()
-        };
-        transform.look_at(Vec3::ZERO, Vec3::Y);
-        Self{identifier, camera,render_graph,transform}
-    }
+#[derive(Debug,Clone,Component,PartialEq, Eq)]
+#[require(Mesh3d, MeshMaterial3d<StandardMaterial>, Transform)]
+pub struct MyPlayer{
+    player_id: Player,
+    pos: Pos
 }
 
 #[cfg(test)]

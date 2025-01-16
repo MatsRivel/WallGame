@@ -3,7 +3,7 @@ pub type Pos = [usize;2];
 fn pos_to_vec_component(x: usize, modifier: f32)->f32{
     let x = x as i32 - (N_TILES/2);
     let x = x as f32 * STEP_SIZE;
-    let x = x - TRENCH_WIDTH + modifier;
+    let x = x + TILE_WIDTH/2f32 + modifier;
     x as f32
 }
 
@@ -15,7 +15,7 @@ pub fn pos_to_vec3(pos: Pos, xmod: f32, ymod: f32)->Vec3{
 }
 
 fn vec_to_pos_component(x: f32, modifier: f32)->usize{
-    let x = x + TRENCH_WIDTH - modifier;
+    let x = x - TILE_WIDTH/2f32 - modifier ;
     let x = x / STEP_SIZE;
     let x = (x as i32) + (N_TILES/2) + (1-N_TILES%2);
     x as usize
@@ -108,5 +108,14 @@ mod pos_tests{
         let b = pos_to_tile(a);
         let c = tile_to_pos(b);
         assert_eq!(a,c,"{v:?}, {a:?}, {b:?}, {c:?}")
+    }
+    #[test]
+    fn converstion_test_tile_zero(){
+        let v = Vec3::new(0.0, 0.0, 0.0);
+        let a = tile_to_pos(v);
+        let b = pos_to_tile(a);
+        let c = tile_to_pos(b);
+        assert_eq!(a,c,"{v:?}, {a:?}, {b:?}, {c:?}");
+        assert_eq!(b, Vec3::ZERO);
     }
 }

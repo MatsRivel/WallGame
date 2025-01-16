@@ -75,15 +75,7 @@ pub struct GizmoStruct{
 }
 
 impl GizmoStruct{
-    fn get_mod_float(grid_type: GridType)->(f32,f32){
-        match grid_type{
-            GridType::Tile => (- TILE_WIDTH/2f32, - TILE_WIDTH/2f32),
-            GridType::Cirle => (TRENCH_WIDTH/2f32,TRENCH_WIDTH/2f32),
-            GridType::Horizontal => (- TILE_WIDTH/2f32, TRENCH_WIDTH/2f32),
-            GridType::Vertical => ( -TILE_WIDTH/2f32, TRENCH_WIDTH/2f32),
-        }
-    }
-    fn get_mod_usize(grid_type: GridType)->(f32,f32){
+    fn get_mod(grid_type: GridType)->(f32,f32){
         match grid_type{
             GridType::Tile => (- TILE_WIDTH/2f32, - TILE_WIDTH/2f32),
             GridType::Cirle => (TRENCH_WIDTH/2f32,TRENCH_WIDTH/2f32),
@@ -91,13 +83,14 @@ impl GizmoStruct{
             GridType::Vertical => ( TRENCH_WIDTH/2f32, -TILE_WIDTH/2f32),
         }
     }
+
     pub fn new_float(x: f32, y: f32, grid_type: GridType)->Self{
-        let (xmod, ymod) = Self::get_mod_float(grid_type);
+        let (xmod, ymod) = Self::get_mod(grid_type);
         let [x,y] = vec3_to_pos(Vec3::new(x, y, 0.0), xmod, ymod);
         Self::new_usize(x, y, grid_type)
     }
     pub fn new_usize(x: usize, y: usize, grid_type: GridType)->Self{
-        let (xmod, ymod) = Self::get_mod_usize(grid_type);
+        let (xmod, ymod) = Self::get_mod(grid_type);
         let pos = [x,y];
         let vec = pos_to_vec3([x as usize, y as usize], xmod, ymod);
         let is_visible = match grid_type{
