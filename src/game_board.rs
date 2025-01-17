@@ -67,7 +67,6 @@ pub enum Player{
 pub struct GizmoStruct{
     xmod: f32,
     ymod: f32,
-    vec: Vec3,
     pos: Pos,
     grid_type: GridType,
     is_visible: IsVisible,
@@ -83,7 +82,6 @@ impl GizmoStruct{
             GridType::Vertical => ( TRENCH_WIDTH/2f32, -TILE_WIDTH/2f32),
         }
     }
-
     pub fn new_float(x: f32, y: f32, grid_type: GridType)->Self{
         let (xmod, ymod) = Self::get_mod(grid_type);
         let [x,y] = vec3_to_pos(Vec3::new(x, y, 0.0), xmod, ymod);
@@ -92,14 +90,13 @@ impl GizmoStruct{
     pub fn new_usize(x: usize, y: usize, grid_type: GridType)->Self{
         let (xmod, ymod) = Self::get_mod(grid_type);
         let pos = [x,y];
-        let vec = pos_to_vec3([x as usize, y as usize], xmod, ymod);
         let is_visible = match grid_type{
             GridType::Tile => IsVisible::Visible,
              _ => IsVisible::Invisible
 
         };
         let is_occupied = None;
-        Self { xmod, ymod, vec, pos, grid_type, is_visible, is_occupied }
+        Self { xmod, ymod, pos, grid_type, is_visible, is_occupied }
     }
     pub fn xmod(&self)-> f32{
         self.xmod
@@ -108,9 +105,6 @@ impl GizmoStruct{
         self.ymod
     }
     pub fn vec(&self)-> Vec3{
-        self.vec
-    }
-    pub fn center(&self)-> Vec3{
         pos_to_vec3(self.pos, self.xmod, self.ymod)
     }
     pub fn pos(&self)-> Pos{
@@ -193,10 +187,21 @@ impl GizmoStruct{
         let width = TILE_WIDTH -4.0;
         let height = 1.0;
         match self.grid_type{
-            GridType::Tile       => { gizmos.rect(point, Vec2::new(TILE_WIDTH, TILE_WIDTH), GREEN);},
-            GridType::Cirle      => { gizmos.circle(point, 5.0, RED);},
-            GridType::Horizontal => { gizmos.rect(point, Vec2::new(width, height), RED);},
-            GridType::Vertical   => { gizmos.rect(point, Vec2::new(height, width), RED);},
+            GridType::Tile       => { 
+                let size = Vec2::new(TILE_WIDTH, TILE_WIDTH);
+                gizmos.rect(point, size, GREEN);
+            },
+            GridType::Cirle      => { 
+                gizmos.circle(point, 5.0, RED);
+            },
+            GridType::Horizontal => { 
+                let size = Vec2::new(width, height);
+                gizmos.rect(point, size, RED);
+            },
+            GridType::Vertical   => { 
+                let size = Vec2::new(height, width);
+                gizmos.rect(point, size, RED);
+            },
         };
     }
 }

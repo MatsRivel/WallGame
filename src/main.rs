@@ -2,6 +2,8 @@ mod position_conversion;
 mod game_board;
 mod camera;
 mod move_directions;
+mod pos;
+mod wireframe;
 
 use std::f32::consts::PI;
 use bevy::input::keyboard::KeyboardInput;
@@ -9,10 +11,12 @@ use bevy::pbr::CascadeShadowConfigBuilder;
 use camera::{ControlledCamera, ControlledCameraIndentifier};
 use game_board::{GizmoStruct, GizmoStructBundle, GridType, MyGizmos, Player};
 use move_directions::MoveDirections;
+use pos::GridPosition;
 use position_conversion::{pos_to_vec3, vec3_to_pos, Pos};
 pub use bevy::prelude::*;
 pub use bevy::color::palettes::css::*;
 pub use bevy::input::mouse::MouseMotion;
+use wireframe::WireFrame;
 const TILE_WIDTH: f32 = 64.0;
 const TRENCH_WIDTH: f32 = 8.0;
 const N_TILES: i32 = 5;
@@ -29,15 +33,16 @@ fn main() {
         .add_systems(Startup, setup)
         .add_systems(FixedUpdate, move_camera)
         .add_systems(Update, rotate_light)
-        .add_systems(Update, draw_gizmos)
+        // .add_systems(Update, draw_gizmos)
+        .add_systems(Update,gizmo_drawables)
         // .add_systems(Update, adjust_material_color)
         // .add_systems(Update, move_player)
     .run();
 }
 
 pub fn setup( mut commands: Commands, asset_server: Res<AssetServer>, mut materials: ResMut<Assets<StandardMaterial>>,mut meshes: ResMut<Assets<Mesh>>){
-    // let cursor = asset_server.load("Cursor.png");
     commands.spawn(ControlledCamera::new());
+    // Point-light
     commands.spawn((
         PointLight{ 
             color: Color::Srgba(Srgba::new(1.0, 0.0, 0.0, 0.25)),
@@ -54,7 +59,7 @@ pub fn setup( mut commands: Commands, asset_server: Res<AssetServer>, mut materi
             ..default()
         }.build()
     ));
-    // directional 'sun' light
+    // Directional 'sun' light
     commands.spawn((
         DirectionalLight {
             illuminance: light_consts::lux::OVERCAST_DAY,
@@ -62,7 +67,7 @@ pub fn setup( mut commands: Commands, asset_server: Res<AssetServer>, mut materi
             ..default()
         },
         Transform {
-            translation: Vec3::new(0.0, 0.0, 5.0),
+            translation: Vec3::new(0.0, 5.0, 5.0),
             rotation: Quat::from_rotation_x(-PI / 4.),
             ..default()
         },
@@ -109,13 +114,14 @@ pub fn setup( mut commands: Commands, asset_server: Res<AssetServer>, mut materi
             },
         mesh: Mesh3d(meshes.add(Sphere::new(TILE_WIDTH/3f32).mesh())),
         material: MeshMaterial3d(materials.add(StandardMaterial{ 
-            base_color: Color::srgb(0.0, 1.0, 0.0),
+            base_color: Color::srgb(0.0, 1.0, 4.0),
             perceptual_roughness: 1.0,
             ..default()
         })),
         transform: Transform::from_translation(player_a.vec()),
-    }).observe(drag)
-    .observe(drop_on)
+    })
+    // .observe(drag)
+    // .observe(drop_on)
     ;
 
     commands.spawn(MyPlayerBundle{
@@ -130,9 +136,19 @@ pub fn setup( mut commands: Commands, asset_server: Res<AssetServer>, mut materi
             ..default()
         })),
         transform: Transform::from_translation(player_b.vec()),
-    }).observe(drag)
-    .observe(drop_on)
+    })
+    // .observe(drag)
+    // .observe(drop_on)
     ;
+
+    for x in 0..N_TILES as usize{
+        for y in 0..N_TILES as usize{
+            let grid_position = GridPosition::new(x, y);
+            commands.spawn(TileBundle::new(grid_position,GridType::Tile, &mut materials,&mut meshes).unwrap());
+        }
+    }
+
+
 }
 
 fn rotate_light(time: Res<Time>, mut light_query: Query<&mut Transform, With<PointLight>>, mut gizmos: Gizmos){
@@ -140,9 +156,10 @@ fn rotate_light(time: Res<Time>, mut light_query: Query<&mut Transform, With<Poi
         let new_rot = Quat::from_rotation_z(((time.delta_secs()) / 25.0) * (360.0/(2.0*PI)));
         let new_rot = new_rot.normalize();
         light.rotate_around(Vec3::ZERO,new_rot);
-        gizmos.circle(Isometry3d::from_translation(light.translation), 5.0, WHITE);
+        gizmos.circle(Isometry3d::from_translation(light.translation), 1.0, WHITE);
     }
 }
+
 fn drag(hit: Trigger<Pointer<Drag>>, mut player_query: Query<(Entity, &mut Transform), With<MyPlayer>>){
     let target_id = hit.target;
     for (entity, mut target) in player_query.iter_mut(){
@@ -153,6 +170,7 @@ fn drag(hit: Trigger<Pointer<Drag>>, mut player_query: Query<(Entity, &mut Trans
         target.translation += Vec3::new(pointer_location.x, -pointer_location.y, 0.0);
     }
 }
+
 fn drop(hit: Trigger<Pointer<DragEnd>>, mut player_query: Query<(Entity, &mut Transform), With<MyPlayer>>){
     println!("Drop triggered!");
     let target_id = hit.target;
@@ -168,11 +186,11 @@ fn drop(hit: Trigger<Pointer<DragEnd>>, mut player_query: Query<(Entity, &mut Tr
         target.translation = next;
     }
 }
-fn drop_on(hit: Trigger<Pointer<DragDrop>>, mut player_query: Query<(Entity, &mut Transform), (With<MyPlayer>, Without<GizmoStruct>)>, tile_query: Query<(Entity, &Transform), (With<GizmoStruct>, Without<MyPlayer>)>){
+fn drop_on(hit: Trigger<Pointer<DragOver>>, mut player_query: Query<(Entity, &mut Transform), (With<MyPlayer>, Without<GizmoStruct>)>, tile_query: Query<(Entity, &Transform), (With<GizmoStruct>, Without<MyPlayer>)>){
     println!("\nDropOn triggered!");
-    let player_id = hit.dropped;
+    let player_id = hit.dragged;
     let tile_id = hit.target;
-    println!("{player_id}, {tile_id}");
+    println!("p: {player_id}, t: {tile_id}");
     let mut player = match player_query.iter_mut().find(|v| v.0 == player_id).map(|v| v.1){
         Some(v) => v,
         None => return,
@@ -226,10 +244,18 @@ fn tag_invisible(hit: Trigger<Pointer<Out>>, mut gs_query: Query<(Entity, &mut G
 }
 
 pub fn draw_gizmos(gs_query: Query<&GizmoStruct>, mut gizmos: Gizmos){
+    gizmos.rect(Vec3::new(0.0,0.0,0.0), Vec2::new(100.0, 100.0), BLUE);
     for gs in gs_query.iter(){
         if gs.is_visible(){
             gs.draw_gizmo(&mut gizmos);
         }
+    }
+}
+pub fn gizmo_drawables(gs_query: Query<(&Transform,&WireFrame),With<GridPosition>>, mut gizmos: Gizmos){
+    gizmos.circle(Vec3::splat(0.0), 5.0, PURPLE);
+    for (transform, frame) in gs_query.iter(){
+        let point = transform.translation;
+        frame.draw(point, &mut gizmos);
     }
 }
 
@@ -262,6 +288,40 @@ fn move_camera(mut events: EventReader<KeyboardInput>, time: Res<Time>, mut cont
         let mut cam = controlled_camera_query.single_mut();
         cam.translation += move_dir*25.0;
         *cam = cam.looking_at(Vec3::splat(0.0), Vec3::Y);
+    }
+}
+#[derive(Bundle,Debug)]
+pub struct TileBundle{
+    transform: Transform,
+    pos: GridPosition,
+    wire_frame_gizmo: WireFrame,
+    mesh_3d: Mesh3d,
+    material: MeshMaterial3d<StandardMaterial>
+}
+impl TileBundle{
+    pub fn new(grid_position:GridPosition, grid_type: GridType, materials: &mut ResMut<Assets<StandardMaterial>>, meshes: &mut ResMut<Assets<Mesh>>)->Option<Self>{
+        let size = Vec2::splat(TILE_WIDTH);
+        let color = BLUE.into();
+        match grid_type{
+            GridType::Tile => Some(Self::new_tile(grid_position, size, color, materials, meshes)),// todo!(),
+            GridType::Cirle => None,// todo!(),
+            GridType::Horizontal => None,// todo!(),
+            GridType::Vertical => None,// todo!(),
+        }
+        
+
+    }
+    fn new_tile(grid_position:GridPosition, size: Vec2, color: Color, materials: &mut ResMut<Assets<StandardMaterial>>, meshes: &mut ResMut<Assets<Mesh>>)->Self{
+        let position = grid_position.into();
+        let transform = Transform::from_translation(position);
+        let wire_frame_gizmo = WireFrame::new_square(size, color);
+        let x = size.x/2f32;
+        let y = size.y/2f32;
+        let shape = Cuboid::from_corners(position - Vec3::new(x, y, 0.0), position + Vec3::new(x, y, 1.0));
+        let mesh_3d = Mesh3d(meshes.add(shape));
+        let material = MeshMaterial3d(materials.add(Color::BLACK.with_alpha(0.1)));
+        Self { transform, pos:grid_position, wire_frame_gizmo, mesh_3d, material }
+        
     }
 }
 
