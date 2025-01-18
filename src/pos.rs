@@ -22,8 +22,8 @@ impl GridPosition {
     }
     fn to_float(v: usize) -> f32 {
         let v = v as f32 * STEP_SIZE;
-        let v = v - Self::min_pos();
-        v
+        
+        v - Self::min_pos()
     }
 }
 impl From<Vec3> for GridPosition {

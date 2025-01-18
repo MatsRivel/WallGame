@@ -20,7 +20,6 @@ use grid::{GridType, PlayerId};
 use move_directions::MoveDirections;
 use player::{MyPlayer, MyPlayerBundle};
 use pos::GridPosition;
-use position_conversion::{Pos, pos_to_vec3, vec3_to_pos};
 use tiles::TileBundle;
 use visibility_toggle::{IsVisible, tag_invisible_on_hover_end, tag_visible_on_hover};
 
@@ -124,11 +123,11 @@ pub fn setup(
 }
 fn spawn_grid<'a>(
     commands: &'a mut Commands,
-    mut materials: &'a mut ResMut<Assets<StandardMaterial>>,
-    mut meshes: &'a mut ResMut<Assets<Mesh>>){
+    materials: &'a mut ResMut<Assets<StandardMaterial>>,
+    meshes: &'a mut ResMut<Assets<Mesh>>){
     for (x, y) in (0..N_TILES as usize).flat_map(|x| (0..N_TILES as usize).map(move |y| (x, y))) {
         let grid_position = GridPosition::new(x, y);
-        commands.spawn(TileBundle::new(grid_position, GridType::Tile, &mut materials, &mut meshes).unwrap(),
+        commands.spawn(TileBundle::new(grid_position, GridType::Tile, materials, meshes).unwrap(),
             )
             .observe(tag_invisible_on_hover_end)
             .observe(tag_visible_on_hover);
@@ -138,8 +137,8 @@ fn spawn_grid<'a>(
                     TileBundle::new(
                         grid_position,
                         GridType::Vertical,
-                        &mut materials,
-                        &mut meshes,
+                        materials,
+                        meshes,
                     )
                     .unwrap(),
                 )
@@ -152,8 +151,8 @@ fn spawn_grid<'a>(
                     TileBundle::new(
                         grid_position,
                         GridType::Horizontal,
-                        &mut materials,
-                        &mut meshes,
+                        materials,
+                        meshes,
                     )
                     .unwrap(),
                 )
