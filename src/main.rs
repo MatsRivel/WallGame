@@ -1,21 +1,29 @@
-mod position_conversion;
-mod game_board;
 mod camera;
+mod game_board;
 mod move_directions;
 mod pos;
+mod position_conversion;
 mod wireframe;
+mod player;
+mod tiles;
+mod visibility_toggle;
+
+pub use bevy::color::palettes::css::*;
+// use bevy::gizmos::grid;
+use bevy::input::keyboard::KeyboardInput;
+pub use bevy::input::mouse::MouseMotion;
+use bevy::pbr::CascadeShadowConfigBuilder;
+pub use bevy::prelude::*;
+use camera::{ControlledCamera, ControlledCameraIndentifier};
+use game_board::{GridType, MyGizmos, Player};
+use move_directions::MoveDirections;
+use player::{MyPlayer, MyPlayerBundle};
+use pos::GridPosition;
+use position_conversion::{Pos, pos_to_vec3, vec3_to_pos};
+use tiles::TileBundle;
+use visibility_toggle::{tag_invisible_on_hover_end, tag_visible_on_hover, IsVisible};
 
 use std::f32::consts::PI;
-use bevy::input::keyboard::KeyboardInput;
-use bevy::pbr::CascadeShadowConfigBuilder;
-use camera::{ControlledCamera, ControlledCameraIndentifier};
-use game_board::{GizmoStruct, GizmoStructBundle, GridType, MyGizmos, Player};
-use move_directions::MoveDirections;
-use pos::GridPosition;
-use position_conversion::{pos_to_vec3, vec3_to_pos, Pos};
-pub use bevy::prelude::*;
-pub use bevy::color::palettes::css::*;
-pub use bevy::input::mouse::MouseMotion;
 use wireframe::WireFrame;
 const TILE_WIDTH: f32 = 64.0;
 const TRENCH_WIDTH: f32 = 8.0;
@@ -24,7 +32,9 @@ const STEP_SIZE: f32 = TILE_WIDTH + TRENCH_WIDTH;
 pub const SKY_COLOR: Color = Color::linear_rgb(0.5, 0.5, 0.1);
 
 fn main() {
-    unsafe {std::env::set_var("WGPU_BACKEND", "vk");}
+    unsafe {
+        std::env::set_var("WGPU_BACKEND", "vk");
+    }
     App::new()
         .add_plugins(DefaultPlugins)
         .add_plugins(MeshPickingPlugin)
@@ -33,18 +43,20 @@ fn main() {
         .add_systems(Startup, setup)
         .add_systems(FixedUpdate, move_camera)
         .add_systems(Update, rotate_light)
-        // .add_systems(Update, draw_gizmos)
-        .add_systems(Update,gizmo_drawables)
-        // .add_systems(Update, adjust_material_color)
-        // .add_systems(Update, move_player)
-    .run();
+        .add_systems(Update, gizmo_drawables)
+        .run();
 }
 
-pub fn setup( mut commands: Commands, asset_server: Res<AssetServer>, mut materials: ResMut<Assets<StandardMaterial>>,mut meshes: ResMut<Assets<Mesh>>){
+pub fn setup(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+    mut meshes: ResMut<Assets<Mesh>>,
+) {
     commands.spawn(ControlledCamera::new());
     // Point-light
     commands.spawn((
-        PointLight{ 
+        PointLight {
             color: Color::Srgba(Srgba::new(1.0, 0.0, 0.0, 0.25)),
             radius: 0.25,
             shadows_enabled: true,
@@ -57,7 +69,8 @@ pub fn setup( mut commands: Commands, asset_server: Res<AssetServer>, mut materi
             first_cascade_far_bound: 10.0,
             maximum_distance: 20.0,
             ..default()
-        }.build()
+        }
+        .build(),
     ));
     // Directional 'sun' light
     commands.spawn((
@@ -82,88 +95,113 @@ pub fn setup( mut commands: Commands, asset_server: Res<AssetServer>, mut materi
         .build(),
     ));
 
-    let plane_dims = (N_TILES as f32)*STEP_SIZE/2f32;
+    let plane_dims = (N_TILES as f32) * STEP_SIZE / 2f32;
     // Ground Plane
     commands.spawn((
         Transform::from_xyz(0.0, 0.0, -1.0),
-        Mesh3d(meshes.add(Cuboid::from_corners(Vec3::new(-plane_dims, -plane_dims, -0.2), Vec3::new(plane_dims, plane_dims,  -0.1)))),
+        Mesh3d(meshes.add(Cuboid::from_corners(
+            Vec3::new(-plane_dims, -plane_dims, -0.2),
+            Vec3::new(plane_dims, plane_dims, -0.1),
+        ))),
         MeshMaterial3d(materials.add(StandardMaterial {
             base_color: Color::WHITE,
             perceptual_roughness: 1.0,
             ..default()
         })),
     ));
-    for grid_type in GridType::all(){
-        for initial in GizmoStruct::initials(grid_type){
-            let gs = initial;
-            commands.spawn(GizmoStructBundle::new(gs, &mut materials, &mut meshes))
-                .observe(tag_visible)
-                .observe(tag_invisible)
-                .observe(clickable_tile)
-                // .observe(drop_on)
-                ;
+
+    let player_a = GridPosition::new(2, 0);
+    let player_b = GridPosition::new(2, (N_TILES - 1) as usize);
+
+    commands
+        .spawn(MyPlayerBundle::new(
+            MyPlayer::new(Player::A,player_a),
+            Mesh3d(meshes.add(Sphere::new(TILE_WIDTH / 3f32).mesh())),
+            MeshMaterial3d(materials.add(StandardMaterial {
+                base_color: Color::srgb(0.0, 1.0, 4.0),
+                perceptual_roughness: 1.0,
+                ..default()
+            })),
+            Transform::from_translation(player_a.into()),
+        ))
+        .observe(drag)
+        .observe(snap_drop);
+
+    commands
+        .spawn(MyPlayerBundle::new(
+            MyPlayer::new(Player::B,player_b),
+            Mesh3d(meshes.add(Sphere::new(TILE_WIDTH / 3f32).mesh())),
+            MeshMaterial3d(materials.add(StandardMaterial {
+                base_color: Color::srgb(1.0, 0.0, 0.0),
+                perceptual_roughness: 1.0,
+                ..default()
+            })),
+            Transform::from_translation(player_b.into())
+        ))
+        .observe(drag)
+        .observe(snap_drop);
+
+    for (x, y) in (0..N_TILES as usize).flat_map(|x| (0..N_TILES as usize).map(move |y| (x, y))) {
+        let grid_position = GridPosition::new(x, y);
+        commands
+            .spawn(
+                TileBundle::new(grid_position, GridType::Tile, &mut materials, &mut meshes)
+                    .unwrap(),
+            )
+            .observe(tag_invisible_on_hover_end)
+            .observe(tag_visible_on_hover);
+        if x as i32 != N_TILES - 1 {
+            commands
+                .spawn(
+                    TileBundle::new(
+                        grid_position,
+                        GridType::Vertical,
+                        &mut materials,
+                        &mut meshes,
+                    )
+                    .unwrap(),
+                )
+                .observe(tag_invisible_on_hover_end)
+                .observe(tag_visible_on_hover);
         }
-    }
-    let player_a = GizmoStruct::new_usize(2, 0, GridType::Tile);
-    let player_b = GizmoStruct::new_usize(2, (N_TILES-1) as usize, GridType::Tile);
-
-    commands.spawn(MyPlayerBundle{
-        my_player: MyPlayer{
-                player_id: Player::A,
-                pos: player_a.pos()
-            },
-        mesh: Mesh3d(meshes.add(Sphere::new(TILE_WIDTH/3f32).mesh())),
-        material: MeshMaterial3d(materials.add(StandardMaterial{ 
-            base_color: Color::srgb(0.0, 1.0, 4.0),
-            perceptual_roughness: 1.0,
-            ..default()
-        })),
-        transform: Transform::from_translation(player_a.vec()),
-    })
-    // .observe(drag)
-    // .observe(drop_on)
-    ;
-
-    commands.spawn(MyPlayerBundle{
-        my_player: MyPlayer{
-                player_id: Player::B,
-                pos: player_b.pos()
-            },
-        mesh: Mesh3d(meshes.add(Sphere::new(TILE_WIDTH/3f32).mesh())),
-        material: MeshMaterial3d(materials.add(StandardMaterial{ 
-            base_color: Color::srgb(1.0, 0.0, 0.0),
-            perceptual_roughness: 1.0,
-            ..default()
-        })),
-        transform: Transform::from_translation(player_b.vec()),
-    })
-    // .observe(drag)
-    // .observe(drop_on)
-    ;
-
-    for x in 0..N_TILES as usize{
-        for y in 0..N_TILES as usize{
-            let grid_position = GridPosition::new(x, y);
-            commands.spawn(TileBundle::new(grid_position,GridType::Tile, &mut materials,&mut meshes).unwrap());
+        if y as i32 != N_TILES - 1 {
+            commands
+                .spawn(
+                    TileBundle::new(
+                        grid_position,
+                        GridType::Horizontal,
+                        &mut materials,
+                        &mut meshes,
+                    )
+                    .unwrap(),
+                )
+                .observe(tag_invisible_on_hover_end)
+                .observe(tag_visible_on_hover);
         }
+        // commands.spawn(TileBundle::new(grid_position,GridType::Circle, &mut materials,&mut meshes).unwrap());
     }
-
-
 }
 
-fn rotate_light(time: Res<Time>, mut light_query: Query<&mut Transform, With<PointLight>>, mut gizmos: Gizmos){
-    for mut light in light_query.iter_mut(){
-        let new_rot = Quat::from_rotation_z(((time.delta_secs()) / 25.0) * (360.0/(2.0*PI)));
+fn rotate_light(
+    time: Res<Time>,
+    mut light_query: Query<&mut Transform, With<PointLight>>,
+    mut gizmos: Gizmos,
+) {
+    for mut light in light_query.iter_mut() {
+        let new_rot = Quat::from_rotation_z(((time.delta_secs()) / 25.0) * (360.0 / (2.0 * PI)));
         let new_rot = new_rot.normalize();
-        light.rotate_around(Vec3::ZERO,new_rot);
+        light.rotate_around(Vec3::ZERO, new_rot);
         gizmos.circle(Isometry3d::from_translation(light.translation), 1.0, WHITE);
     }
 }
 
-fn drag(hit: Trigger<Pointer<Drag>>, mut player_query: Query<(Entity, &mut Transform), With<MyPlayer>>){
+fn drag(
+    hit: Trigger<Pointer<Drag>>,
+    mut player_query: Query<(Entity, &mut Transform), With<IsDraggable>>,
+) {
     let target_id = hit.target;
-    for (entity, mut target) in player_query.iter_mut(){
-        if target_id != entity{
+    for (entity, mut target) in player_query.iter_mut() {
+        if target_id != entity {
             continue;
         }
         let pointer_location = hit.delta;
@@ -171,113 +209,38 @@ fn drag(hit: Trigger<Pointer<Drag>>, mut player_query: Query<(Entity, &mut Trans
     }
 }
 
-fn drop(hit: Trigger<Pointer<DragEnd>>, mut player_query: Query<(Entity, &mut Transform), With<MyPlayer>>){
-    println!("Drop triggered!");
+fn snap_drop(
+    hit: Trigger<Pointer<DragEnd>>,
+    mut player_query: Query<(Entity, &mut Transform), With<IsSnappable>>,
+) {
     let target_id = hit.target;
-    for (entity, mut target) in player_query.iter_mut(){
-        if target_id != entity{
+    for (entity, mut target) in player_query.iter_mut() {
+        if target_id != entity {
             continue;
         }
-        let current_x = target.translation.x;
-        let current_y = target.translation.y;
-        let next = GizmoStruct::new_float(current_x, current_y, GridType::Tile).vec();
-        println!("current: {:?}, next: {:?}",target.translation, next);
-
+        let pos: GridPosition = target.translation.into();
+        let next = pos.into();
         target.translation = next;
     }
 }
-fn drop_on(hit: Trigger<Pointer<DragOver>>, mut player_query: Query<(Entity, &mut Transform), (With<MyPlayer>, Without<GizmoStruct>)>, tile_query: Query<(Entity, &Transform), (With<GizmoStruct>, Without<MyPlayer>)>){
-    println!("\nDropOn triggered!");
-    let player_id = hit.dragged;
-    let tile_id = hit.target;
-    println!("p: {player_id}, t: {tile_id}");
-    let mut player = match player_query.iter_mut().find(|v| v.0 == player_id).map(|v| v.1){
-        Some(v) => v,
-        None => return,
-    };
-    println!("player_found");
-    let tile = match tile_query.iter().find(|v| v.0 == tile_id).map(|v| v.1){
-        Some(v) => v,
-        None => return,
-    };
-    println!("tile_found");
-    println!("Player: {:?}, Tile: {:?}", player.translation, tile.translation);
-    player.translation.x = tile.translation.x;
-    player.translation.y = tile.translation.y;
-}
-fn clickable_tile(hit: Trigger<Pointer<Click>>, mut gs_query: Query<(Entity, &mut GizmoStruct)>){
-    let target = hit.target;
-    for (entity, mut gs) in gs_query.iter_mut(){
-        if target == entity{
-            match gs.get_occupant(){
-                Some(p) => match p{
-                    game_board::Player::A => {
-                        gs.remove_player().unwrap();
-                        gs.put_player(game_board::Player::B).unwrap();
-                    },
-                    game_board::Player::B => {
-                        gs.remove_player().unwrap();
-                    },
-                },
-                None => gs.put_player(game_board::Player::A).unwrap(),
-            }
-        }
-    }
-}
 
-fn tag_visible(hit: Trigger<Pointer<Over>>, mut gs_query: Query<(Entity, &mut GizmoStruct)>){
-    let target = hit.target;
-    for (entity, mut gs) in gs_query.iter_mut(){
-        if target == entity{
-            gs.set_visible();
-        }
-    }
-}
-
-fn tag_invisible(hit: Trigger<Pointer<Out>>, mut gs_query: Query<(Entity, &mut GizmoStruct)>){
-    let target = hit.target;
-    for (entity, mut gs) in gs_query.iter_mut(){
-        if target == entity && !gs.is_tile(){
-            gs.set_invisible();
-        }
-    }
-}
-
-pub fn draw_gizmos(gs_query: Query<&GizmoStruct>, mut gizmos: Gizmos){
-    gizmos.rect(Vec3::new(0.0,0.0,0.0), Vec2::new(100.0, 100.0), BLUE);
-    for gs in gs_query.iter(){
-        if gs.is_visible(){
-            gs.draw_gizmo(&mut gizmos);
-        }
-    }
-}
-pub fn gizmo_drawables(gs_query: Query<(&Transform,&WireFrame),With<GridPosition>>, mut gizmos: Gizmos){
-    gizmos.circle(Vec3::splat(0.0), 5.0, PURPLE);
-    for (transform, frame) in gs_query.iter(){
+pub fn gizmo_drawables(
+    query: Query<(&Transform, &WireFrame, &IsVisible), With<GridPosition>>,
+    mut gizmos: Gizmos,
+) {
+    for (transform, frame,_) in query.iter().filter(|(_,_,visibility)| visibility.is_visible()) {
         let point = transform.translation;
         frame.draw(point, &mut gizmos);
     }
 }
 
-pub fn adjust_material_color(gs_query: Query<(&GizmoStruct, &MeshMaterial3d<StandardMaterial>)>, mut materials: ResMut<Assets<StandardMaterial>>){
-    for (gs, mat) in gs_query.iter(){
-        let id = mat.id();
-        let color = match gs.get_occupant(){
-            Some(p) => {
-                match p{
-                    game_board::Player::A => Color::Srgba(Srgba::new(0.0, 1.0, 0.0, 0.95)),
-                    game_board::Player::B => Color::Srgba(Srgba::new( 1.0,0.0, 0.0, 0.95)),
-                }
-            },
-            None => Color::Srgba(Srgba::new( 0.0,0.0, 0.0, 0.05)),
-        };
-        if let Some(material_asset) = materials.get_mut(id){
-            material_asset.base_color = color;
-        }
-    }
-}
 
-fn move_camera(mut events: EventReader<KeyboardInput>, time: Res<Time>, mut controlled_camera_query: Query<&mut Transform, With<ControlledCameraIndentifier>>) {
+
+fn move_camera(
+    mut events: EventReader<KeyboardInput>,
+    time: Res<Time>,
+    mut controlled_camera_query: Query<&mut Transform, With<ControlledCameraIndentifier>>,
+) {
     for event in events.read() {
         // Only check for characters when the key is pressed.
         if !event.state.is_pressed() {
@@ -286,58 +249,23 @@ fn move_camera(mut events: EventReader<KeyboardInput>, time: Res<Time>, mut cont
         println!("{event:?}");
         let move_dir = MoveDirections::new_event(event).to_vec3();
         let mut cam = controlled_camera_query.single_mut();
-        cam.translation += move_dir*25.0;
+        cam.translation += move_dir * 25.0;
         *cam = cam.looking_at(Vec3::splat(0.0), Vec3::Y);
     }
 }
-#[derive(Bundle,Debug)]
-pub struct TileBundle{
-    transform: Transform,
-    pos: GridPosition,
-    wire_frame_gizmo: WireFrame,
-    mesh_3d: Mesh3d,
-    material: MeshMaterial3d<StandardMaterial>
-}
-impl TileBundle{
-    pub fn new(grid_position:GridPosition, grid_type: GridType, materials: &mut ResMut<Assets<StandardMaterial>>, meshes: &mut ResMut<Assets<Mesh>>)->Option<Self>{
-        let size = Vec2::splat(TILE_WIDTH);
-        let color = BLUE.into();
-        match grid_type{
-            GridType::Tile => Some(Self::new_tile(grid_position, size, color, materials, meshes)),// todo!(),
-            GridType::Cirle => None,// todo!(),
-            GridType::Horizontal => None,// todo!(),
-            GridType::Vertical => None,// todo!(),
-        }
-        
 
-    }
-    fn new_tile(grid_position:GridPosition, size: Vec2, color: Color, materials: &mut ResMut<Assets<StandardMaterial>>, meshes: &mut ResMut<Assets<Mesh>>)->Self{
-        let position = grid_position.into();
-        let transform = Transform::from_translation(position);
-        let wire_frame_gizmo = WireFrame::new_square(size, color);
-        let x = size.x/2f32;
-        let y = size.y/2f32;
-        let shape = Cuboid::from_corners(position - Vec3::new(x, y, 0.0), position + Vec3::new(x, y, 1.0));
-        let mesh_3d = Mesh3d(meshes.add(shape));
-        let material = MeshMaterial3d(materials.add(Color::BLACK.with_alpha(0.1)));
-        Self { transform, pos:grid_position, wire_frame_gizmo, mesh_3d, material }
-        
-    }
-}
+#[derive(Debug,Component,Default)]
+struct IsDroppable;
 
-#[derive(Bundle,Debug)]
-pub struct MyPlayerBundle{
-    my_player: MyPlayer,
-    mesh: Mesh3d, 
-    material: MeshMaterial3d<StandardMaterial>, 
-    transform: Transform
-}
-#[derive(Debug,Clone,Component,PartialEq, Eq)]
-#[require(Mesh3d, MeshMaterial3d<StandardMaterial>, Transform)]
-pub struct MyPlayer{
-    player_id: Player,
-    pos: Pos
-}
+#[derive(Debug,Component,Default)]
+struct IsDraggable;
+
+#[derive(Debug,Component)]
+struct IsSnapTarget;
+
+#[derive(Debug,Component,Default)]
+#[require(IsDroppable)]
+struct IsSnappable;
 
 #[cfg(test)]
 mod main_tests{
