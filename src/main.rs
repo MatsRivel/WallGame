@@ -1,12 +1,12 @@
 mod camera;
 mod game_board;
 mod move_directions;
+mod player;
 mod pos;
 mod position_conversion;
-mod wireframe;
-mod player;
 mod tiles;
 mod visibility_toggle;
+mod wireframe;
 
 pub use bevy::color::palettes::css::*;
 // use bevy::gizmos::grid;
@@ -14,14 +14,14 @@ use bevy::input::keyboard::KeyboardInput;
 pub use bevy::input::mouse::MouseMotion;
 use bevy::pbr::CascadeShadowConfigBuilder;
 pub use bevy::prelude::*;
-use camera::{ControlledCamera, ControlledCameraIndentifier};
+use camera::{ControlledCamera, move_camera};
 use game_board::{GridType, MyGizmos, Player};
 use move_directions::MoveDirections;
 use player::{MyPlayer, MyPlayerBundle};
 use pos::GridPosition;
 use position_conversion::{Pos, pos_to_vec3, vec3_to_pos};
 use tiles::TileBundle;
-use visibility_toggle::{tag_invisible_on_hover_end, tag_visible_on_hover, IsVisible};
+use visibility_toggle::{IsVisible, tag_invisible_on_hover_end, tag_visible_on_hover};
 
 use std::f32::consts::PI;
 use wireframe::WireFrame;
@@ -43,7 +43,7 @@ fn main() {
         .add_systems(Startup, setup)
         .add_systems(FixedUpdate, move_camera)
         .add_systems(Update, rotate_light)
-        .add_systems(Update, gizmo_drawables)
+        .add_systems(Update, draw_visible_gridposition_wireframes)
         .run();
 }
 
@@ -110,34 +110,11 @@ pub fn setup(
         })),
     ));
 
-    let player_a = GridPosition::new(2, 0);
-    let player_b = GridPosition::new(2, (N_TILES - 1) as usize);
-
-    commands
-        .spawn(MyPlayerBundle::new(
-            MyPlayer::new(Player::A,player_a),
-            Mesh3d(meshes.add(Sphere::new(TILE_WIDTH / 3f32).mesh())),
-            MeshMaterial3d(materials.add(StandardMaterial {
-                base_color: Color::srgb(0.0, 1.0, 4.0),
-                perceptual_roughness: 1.0,
-                ..default()
-            })),
-            Transform::from_translation(player_a.into()),
-        ))
+    spawn_player_bundle_a(&mut commands, &mut materials, &mut meshes)
         .observe(drag)
         .observe(snap_drop);
 
-    commands
-        .spawn(MyPlayerBundle::new(
-            MyPlayer::new(Player::B,player_b),
-            Mesh3d(meshes.add(Sphere::new(TILE_WIDTH / 3f32).mesh())),
-            MeshMaterial3d(materials.add(StandardMaterial {
-                base_color: Color::srgb(1.0, 0.0, 0.0),
-                perceptual_roughness: 1.0,
-                ..default()
-            })),
-            Transform::from_translation(player_b.into())
-        ))
+    spawn_player_bundle_b(&mut commands, &mut materials, &mut meshes)
         .observe(drag)
         .observe(snap_drop);
 
@@ -182,6 +159,41 @@ pub fn setup(
     }
 }
 
+fn spawn_player_bundle_a<'a>(
+    commands: &'a mut Commands,
+    materials: &'a mut ResMut<Assets<StandardMaterial>>,
+    meshes: &'a mut ResMut<Assets<Mesh>>,
+) -> EntityCommands<'a> {
+    let player_a = GridPosition::new(2, 0);
+    commands.spawn(MyPlayerBundle::new(
+        MyPlayer::new(Player::A, player_a),
+        Mesh3d(meshes.add(Sphere::new(TILE_WIDTH / 3f32).mesh())),
+        MeshMaterial3d(materials.add(StandardMaterial {
+            base_color: Color::srgb(0.0, 1.0, 4.0),
+            perceptual_roughness: 1.0,
+            ..default()
+        })),
+        Transform::from_translation(player_a.into()),
+    ))
+}
+fn spawn_player_bundle_b<'a>(
+    commands: &'a mut Commands,
+    materials: &'a mut ResMut<Assets<StandardMaterial>>,
+    meshes: &'a mut ResMut<Assets<Mesh>>,
+) -> EntityCommands<'a> {
+    let player_b = GridPosition::new(2, (N_TILES - 1) as usize);
+    commands.spawn(MyPlayerBundle::new(
+        MyPlayer::new(Player::B, player_b),
+        Mesh3d(meshes.add(Sphere::new(TILE_WIDTH / 3f32).mesh())),
+        MeshMaterial3d(materials.add(StandardMaterial {
+            base_color: Color::srgb(1.0, 0.0, 0.0),
+            perceptual_roughness: 1.0,
+            ..default()
+        })),
+        Transform::from_translation(player_b.into()),
+    ))
+}
+
 fn rotate_light(
     time: Res<Time>,
     mut light_query: Query<&mut Transform, With<PointLight>>,
@@ -194,7 +206,7 @@ fn rotate_light(
         gizmos.circle(Isometry3d::from_translation(light.translation), 1.0, WHITE);
     }
 }
-
+/// When an object is "Dragged" (prolonged click), the object follows the mouse.
 fn drag(
     hit: Trigger<Pointer<Drag>>,
     mut player_query: Query<(Entity, &mut Transform), With<IsDraggable>>,
@@ -208,7 +220,7 @@ fn drag(
         target.translation += Vec3::new(pointer_location.x, -pointer_location.y, 0.0);
     }
 }
-
+/// Snaps to an integer position in a grid defined mathematically.
 fn snap_drop(
     hit: Trigger<Pointer<DragEnd>>,
     mut player_query: Query<(Entity, &mut Transform), With<IsSnappable>>,
@@ -224,49 +236,31 @@ fn snap_drop(
     }
 }
 
-pub fn gizmo_drawables(
+pub fn draw_visible_gridposition_wireframes(
     query: Query<(&Transform, &WireFrame, &IsVisible), With<GridPosition>>,
     mut gizmos: Gizmos,
 ) {
-    for (transform, frame,_) in query.iter().filter(|(_,_,visibility)| visibility.is_visible()) {
+    for (transform, frame, _) in query
+        .iter()
+        .filter(|(_, _, visibility)| visibility.is_visible())
+    {
         let point = transform.translation;
         frame.draw(point, &mut gizmos);
     }
 }
 
-
-
-fn move_camera(
-    mut events: EventReader<KeyboardInput>,
-    time: Res<Time>,
-    mut controlled_camera_query: Query<&mut Transform, With<ControlledCameraIndentifier>>,
-) {
-    for event in events.read() {
-        // Only check for characters when the key is pressed.
-        if !event.state.is_pressed() {
-            continue;
-        }
-        println!("{event:?}");
-        let move_dir = MoveDirections::new_event(event).to_vec3();
-        let mut cam = controlled_camera_query.single_mut();
-        cam.translation += move_dir * 25.0;
-        *cam = cam.looking_at(Vec3::splat(0.0), Vec3::Y);
-    }
-}
-
-#[derive(Debug,Component,Default)]
+#[derive(Debug, Component, Default)]
 struct IsDroppable;
 
-#[derive(Debug,Component,Default)]
+#[derive(Debug, Component, Default)]
 struct IsDraggable;
 
-#[derive(Debug,Component)]
+#[derive(Debug, Component)]
 struct IsSnapTarget;
 
-#[derive(Debug,Component,Default)]
+#[derive(Debug, Component, Default)]
 #[require(IsDroppable)]
 struct IsSnappable;
 
 #[cfg(test)]
-mod main_tests{
-}
+mod main_tests {}

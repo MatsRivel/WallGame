@@ -1,7 +1,5 @@
 use super::*;
 
-
-
 #[derive(Default, Reflect, GizmoConfigGroup)]
 pub struct MyGizmos;
 

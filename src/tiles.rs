@@ -38,7 +38,17 @@ impl TileBundle {
             )),
         }
     }
-    fn new_square(position: Vec3, x: f32, y: f32, size: Vec2, frame_color: Color, tile_color: Color, alpha: f32, materials: &mut ResMut<Assets<StandardMaterial>>, meshes: &mut ResMut<Assets<Mesh>>, ) -> Self {
+    fn new_square(
+        position: Vec3,
+        x: f32,
+        y: f32,
+        size: Vec2,
+        frame_color: Color,
+        tile_color: Color,
+        alpha: f32,
+        materials: &mut ResMut<Assets<StandardMaterial>>,
+        meshes: &mut ResMut<Assets<Mesh>>,
+    ) -> Self {
         let transform = Transform::from_translation(position);
         let wire_frame_gizmo = WireFrame::new_square(size, frame_color);
         let shape = Cuboid::from_corners(
@@ -88,9 +98,9 @@ impl TileBundle {
         materials: &mut ResMut<Assets<StandardMaterial>>,
         meshes: &mut ResMut<Assets<Mesh>>,
     ) -> TileBundle {
-        let position = Vec3::from(grid_position) + Vec3::ZERO.with_y( STEP_SIZE/2f32);
-        let x = TILE_WIDTH/2f32;
-        let y = TRENCH_WIDTH/2f32;
+        let position = Vec3::from(grid_position) + Vec3::ZERO.with_y(STEP_SIZE / 2f32);
+        let x = TILE_WIDTH / 2f32;
+        let y = TRENCH_WIDTH / 2f32;
         let frame_color = GREEN.into();
         let tile_color = Color::BLACK;
         let alpha = 0.25;
@@ -113,7 +123,7 @@ impl TileBundle {
         materials: &mut ResMut<Assets<StandardMaterial>>,
         meshes: &mut ResMut<Assets<Mesh>>,
     ) -> TileBundle {
-        let position = Vec3::from(grid_position) + Vec3::ZERO.with_x( STEP_SIZE/2f32);
+        let position = Vec3::from(grid_position) + Vec3::ZERO.with_x(STEP_SIZE / 2f32);
         let x = TRENCH_WIDTH / 2f32;
         let y = TILE_WIDTH / 2f32;
         let frame_color = GREEN.into();

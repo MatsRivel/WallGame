@@ -4,15 +4,15 @@ pub enum IsVisible {
     Visible,
     Invisible,
 }
-impl IsVisible{
-    pub fn is_visible(&self)->bool{
-        match self{
+impl IsVisible {
+    pub fn is_visible(&self) -> bool {
+        match self {
             IsVisible::Visible => true,
             IsVisible::Invisible => false,
         }
     }
-    pub fn is_invisible(&self)->bool{
-        match self{
+    pub fn is_invisible(&self) -> bool {
+        match self {
             IsVisible::Visible => false,
             IsVisible::Invisible => true,
         }

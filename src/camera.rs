@@ -30,3 +30,21 @@ impl ControlledCamera {
         }
     }
 }
+
+pub fn move_camera(
+    mut events: EventReader<KeyboardInput>,
+    time: Res<Time>,
+    mut controlled_camera_query: Query<&mut Transform, With<ControlledCameraIndentifier>>,
+) {
+    for event in events.read() {
+        // Only check for characters when the key is pressed.
+        if !event.state.is_pressed() {
+            continue;
+        }
+        println!("{event:?}");
+        let move_dir = MoveDirections::new_event(event).to_vec3();
+        let mut cam = controlled_camera_query.single_mut();
+        cam.translation += move_dir * 25.0;
+        *cam = cam.looking_at(Vec3::splat(0.0), Vec3::Y);
+    }
+}
