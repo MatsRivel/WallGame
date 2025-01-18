@@ -38,6 +38,7 @@ impl TileBundle {
             )),
         }
     }
+    
     fn new_square(
         position: Vec3,
         x: f32,
@@ -79,6 +80,7 @@ impl TileBundle {
         let frame_color = BLUE.into();
         let tile_color = Color::WHITE;
         let alpha = 0.5;
+
         Self::new_square(
             position,
             x,
@@ -104,6 +106,7 @@ impl TileBundle {
         let frame_color = GREEN.into();
         let tile_color = Color::BLACK;
         let alpha = 0.25;
+
         Self::new_square(
             position,
             x,
@@ -129,6 +132,7 @@ impl TileBundle {
         let frame_color = GREEN.into();
         let tile_color = Color::BLACK;
         let alpha = 0.15;
+
         Self::new_square(
             position,
             x,

@@ -7,7 +7,7 @@ mod tiles;
 mod visibility_toggle;
 mod wireframe;
 mod grid;
-
+mod walls;
 
 pub use bevy::color::palettes::css::*;
 // use bevy::gizmos::grid;
@@ -22,6 +22,7 @@ use player::{MyPlayer, MyPlayerBundle};
 use pos::GridPosition;
 use tiles::TileBundle;
 use visibility_toggle::{IsVisible, tag_invisible_on_hover_end, tag_visible_on_hover};
+use walls::spawn_wall;
 
 use std::f32::consts::PI;
 use wireframe::WireFrame;
@@ -118,9 +119,20 @@ pub fn setup(
         .observe(drag)
         .observe(snap_drop);
 
-    spawn_grid(&mut commands, &mut materials, &mut meshes)
+    spawn_grid(&mut commands, &mut materials, &mut meshes);
+    let start_pos = Vec3::new(STEP_SIZE*N_TILES as f32, 0.0, 0.0);
+    let n_walls = 20;
+    spawn_wall(start_pos, n_walls, &mut commands, &mut materials, &mut meshes);
     
 }
+fn spawn_walls<'a>(
+    commands: &'a mut Commands,
+    materials: &'a mut ResMut<Assets<StandardMaterial>>,
+    meshes: &'a mut ResMut<Assets<Mesh>>){
+
+
+}
+
 fn spawn_grid<'a>(
     commands: &'a mut Commands,
     materials: &'a mut ResMut<Assets<StandardMaterial>>,
