@@ -1,5 +1,4 @@
 mod camera;
-mod game_board;
 mod move_directions;
 mod player;
 mod pos;
@@ -7,6 +6,8 @@ mod position_conversion;
 mod tiles;
 mod visibility_toggle;
 mod wireframe;
+mod grid;
+
 
 pub use bevy::color::palettes::css::*;
 // use bevy::gizmos::grid;
@@ -15,7 +16,7 @@ pub use bevy::input::mouse::MouseMotion;
 use bevy::pbr::CascadeShadowConfigBuilder;
 pub use bevy::prelude::*;
 use camera::{ControlledCamera, move_camera};
-use game_board::{GridType, MyGizmos, Player};
+use grid::{GridType, PlayerId};
 use move_directions::MoveDirections;
 use player::{MyPlayer, MyPlayerBundle};
 use pos::GridPosition;
@@ -118,12 +119,16 @@ pub fn setup(
         .observe(drag)
         .observe(snap_drop);
 
+    spawn_grid(&mut commands, &mut materials, &mut meshes)
+    
+}
+fn spawn_grid<'a>(
+    commands: &'a mut Commands,
+    mut materials: &'a mut ResMut<Assets<StandardMaterial>>,
+    mut meshes: &'a mut ResMut<Assets<Mesh>>){
     for (x, y) in (0..N_TILES as usize).flat_map(|x| (0..N_TILES as usize).map(move |y| (x, y))) {
         let grid_position = GridPosition::new(x, y);
-        commands
-            .spawn(
-                TileBundle::new(grid_position, GridType::Tile, &mut materials, &mut meshes)
-                    .unwrap(),
+        commands.spawn(TileBundle::new(grid_position, GridType::Tile, &mut materials, &mut meshes).unwrap(),
             )
             .observe(tag_invisible_on_hover_end)
             .observe(tag_visible_on_hover);
@@ -155,7 +160,6 @@ pub fn setup(
                 .observe(tag_invisible_on_hover_end)
                 .observe(tag_visible_on_hover);
         }
-        // commands.spawn(TileBundle::new(grid_position,GridType::Circle, &mut materials,&mut meshes).unwrap());
     }
 }
 
@@ -166,7 +170,7 @@ fn spawn_player_bundle_a<'a>(
 ) -> EntityCommands<'a> {
     let player_a = GridPosition::new(2, 0);
     commands.spawn(MyPlayerBundle::new(
-        MyPlayer::new(Player::A, player_a),
+        MyPlayer::new(PlayerId::A, player_a),
         Mesh3d(meshes.add(Sphere::new(TILE_WIDTH / 3f32).mesh())),
         MeshMaterial3d(materials.add(StandardMaterial {
             base_color: Color::srgb(0.0, 1.0, 4.0),
@@ -176,6 +180,7 @@ fn spawn_player_bundle_a<'a>(
         Transform::from_translation(player_a.into()),
     ))
 }
+
 fn spawn_player_bundle_b<'a>(
     commands: &'a mut Commands,
     materials: &'a mut ResMut<Assets<StandardMaterial>>,
@@ -183,7 +188,7 @@ fn spawn_player_bundle_b<'a>(
 ) -> EntityCommands<'a> {
     let player_b = GridPosition::new(2, (N_TILES - 1) as usize);
     commands.spawn(MyPlayerBundle::new(
-        MyPlayer::new(Player::B, player_b),
+        MyPlayer::new(PlayerId::B, player_b),
         Mesh3d(meshes.add(Sphere::new(TILE_WIDTH / 3f32).mesh())),
         MeshMaterial3d(materials.add(StandardMaterial {
             base_color: Color::srgb(1.0, 0.0, 0.0),
@@ -249,6 +254,8 @@ pub fn draw_visible_gridposition_wireframes(
     }
 }
 
+
+
 #[derive(Debug, Component, Default)]
 struct IsDroppable;
 
@@ -261,6 +268,9 @@ struct IsSnapTarget;
 #[derive(Debug, Component, Default)]
 #[require(IsDroppable)]
 struct IsSnappable;
+
+#[derive(Default, Reflect, GizmoConfigGroup)]
+pub struct MyGizmos;
 
 #[cfg(test)]
 mod main_tests {}

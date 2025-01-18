@@ -25,11 +25,11 @@ impl MyPlayerBundle {
 #[derive(Debug, Clone, Component, PartialEq, Eq)]
 #[require(Mesh3d, MeshMaterial3d<StandardMaterial>, Transform, IsSnappable, IsDraggable)]
 pub struct MyPlayer {
-    player_id: Player,
+    player_id: PlayerId,
     pos: GridPosition,
 }
 impl MyPlayer {
-    pub fn new(player_id: Player, pos: GridPosition) -> Self {
+    pub fn new(player_id: PlayerId, pos: GridPosition) -> Self {
         Self { player_id, pos }
     }
 }
