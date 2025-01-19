@@ -21,7 +21,7 @@ use move_directions::MoveDirections;
 use player::{MyPlayer, MyPlayerBundle};
 use pos::GridPosition;
 use tiles::TileBundle;
-use visibility_toggle::{IsVisible, tag_invisible_on_hover_end, tag_visible_on_hover};
+use visibility_toggle::{GizmoOutlineToggle, tag_invisible_on_hover_end, tag_visible_on_hover};
 use walls::spawn_wall;
 
 use std::f32::consts::PI;
@@ -32,6 +32,7 @@ const N_TILES: i32 = 5;
 const STEP_SIZE: f32 = TILE_WIDTH + TRENCH_WIDTH;
 pub const SKY_COLOR: Color = Color::linear_rgb(0.5, 0.5, 0.1);
 
+
 fn main() {
     unsafe {
         std::env::set_var("WGPU_BACKEND", "vk");
@@ -41,13 +42,48 @@ fn main() {
         .add_plugins(MeshPickingPlugin)
         .insert_resource(ClearColor(SKY_COLOR))
         .init_gizmo_group::<MyGizmos>()
+        // .add_systems(Startup, simple_setup)
         .add_systems(Startup, setup)
         .add_systems(FixedUpdate, move_camera)
         .add_systems(Update, rotate_light)
-        .add_systems(Update, draw_visible_gridposition_wireframes)
+        .add_systems(Update, draw_toggelable_visible_wireframes)
+        .add_systems(Update, draw_always_visible_wireframes)
         .run();
 }
+pub fn simple_setup(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+    mut meshes: ResMut<Assets<Mesh>>,
+){
+    commands.spawn(ControlledCamera::new());
+    // Directional 'sun' light
+    commands.spawn((
+        DirectionalLight {
+            illuminance: light_consts::lux::OVERCAST_DAY,
+            shadows_enabled: true,
+            ..default()
+        },
+        Transform {
+            translation: Vec3::new(0.0, 5.0, 5.0),
+            rotation: Quat::from_rotation_x(-PI / 4.),
+            ..default()
+        },
+        // The default cascade config is designed to handle large scenes.
+        // As this example has a much smaller world, we can tighten the shadow
+        // bounds for better visual quality.
+        CascadeShadowConfigBuilder {
+            first_cascade_far_bound: 4.0,
+            maximum_distance: 10.0,
+            ..default()
+        }
+        .build(),
+    ));
+    let start_pos = Vec3::ZERO;
+    let n_walls = 4;
+    spawn_wall(start_pos, n_walls, &mut commands, &mut materials, &mut meshes);
 
+}
 pub fn setup(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
@@ -73,6 +109,7 @@ pub fn setup(
         }
         .build(),
     ));
+
     // Directional 'sun' light
     commands.spawn((
         DirectionalLight {
@@ -113,24 +150,17 @@ pub fn setup(
 
     spawn_player_bundle_a(&mut commands, &mut materials, &mut meshes)
         .observe(drag)
-        .observe(snap_drop);
+        .observe(snap_drop_tile);
 
     spawn_player_bundle_b(&mut commands, &mut materials, &mut meshes)
         .observe(drag)
-        .observe(snap_drop);
+        .observe(snap_drop_tile);
 
     spawn_grid(&mut commands, &mut materials, &mut meshes);
-    let start_pos = Vec3::new(STEP_SIZE*N_TILES as f32, 0.0, 0.0);
+    let start_pos = Vec3::new(STEP_SIZE*(N_TILES-2) as f32, 0.0, 0.0);
     let n_walls = 20;
     spawn_wall(start_pos, n_walls, &mut commands, &mut materials, &mut meshes);
     
-}
-fn spawn_walls<'a>(
-    commands: &'a mut Commands,
-    materials: &'a mut ResMut<Assets<StandardMaterial>>,
-    meshes: &'a mut ResMut<Assets<Mesh>>){
-
-
 }
 
 fn spawn_grid<'a>(
@@ -237,9 +267,9 @@ fn drag(
     }
 }
 /// Snaps to an integer position in a grid defined mathematically.
-fn snap_drop(
+fn snap_drop_tile(
     hit: Trigger<Pointer<DragEnd>>,
-    mut player_query: Query<(Entity, &mut Transform), With<IsSnappable>>,
+    mut player_query: Query<(Entity, &mut Transform), With<IsTileSnappable>>,
 ) {
     let target_id = hit.target;
     for (entity, mut target) in player_query.iter_mut() {
@@ -252,10 +282,40 @@ fn snap_drop(
     }
 }
 
-pub fn draw_visible_gridposition_wireframes(
-    query: Query<(&Transform, &WireFrame, &IsVisible), With<GridPosition>>,
+/// Snaps to an integer position in a grid defined mathematically.
+fn snap_drop_wall(
+    hit: Trigger<Pointer<DragEnd>>,
+    mut player_query: Query<(Entity, &mut Transform), With<IsWallSnappable>>,
+) {
+    let target_id = hit.target;
+    for (entity, mut target) in player_query.iter_mut() {
+        if target_id != entity {
+            continue;
+        }
+        let modifier1 = (TRENCH_WIDTH-TILE_WIDTH)/2f32;
+        let modifier2 = (TILE_WIDTH + TRENCH_WIDTH)/2f32;
+        let modified_mouse_pos = target.translation + Vec3::ZERO.with_y(modifier1);
+        let pos: GridPosition = modified_mouse_pos.into();
+        let next = Vec3::from(pos) + Vec3::ZERO.with_y(modifier2);
+        target.translation = next;
+    }
+}
+
+pub fn draw_always_visible_wireframes(
+    query: Query<(&Transform, &WireFrame), Without<GizmoOutlineToggle>>,
+    mut gizmos: Gizmos
+    ){
+    for (transform, frame) in query.iter(){
+        let point = transform.translation;
+        frame.draw(point, &mut gizmos);
+    }
+}
+
+pub fn draw_toggelable_visible_wireframes(
+    query: Query<(&Transform, &WireFrame, &GizmoOutlineToggle)>,
     mut gizmos: Gizmos,
 ) {
+
     for (transform, frame, _) in query
         .iter()
         .filter(|(_, _, visibility)| visibility.is_visible())
@@ -266,6 +326,8 @@ pub fn draw_visible_gridposition_wireframes(
 }
 
 
+#[derive(Debug, Component, Default)]
+struct IsHoverable;
 
 #[derive(Debug, Component, Default)]
 struct IsDroppable;
@@ -278,7 +340,11 @@ struct IsSnapTarget;
 
 #[derive(Debug, Component, Default)]
 #[require(IsDroppable)]
-struct IsSnappable;
+struct IsTileSnappable;
+
+#[derive(Debug, Component, Default)]
+#[require(IsDroppable)]
+struct IsWallSnappable;
 
 #[derive(Default, Reflect, GizmoConfigGroup)]
 pub struct MyGizmos;

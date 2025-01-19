@@ -1,7 +1,7 @@
 use super::*;
 
 #[derive(Debug, Component, Clone, Copy, Eq, PartialEq)]
-pub struct GridPosition {
+pub struct GridPosition{
     x: usize,
     y: usize,
 }

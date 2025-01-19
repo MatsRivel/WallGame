@@ -10,6 +10,11 @@ impl CircleGizmo {
         Self { radius, color }
     }
 }
+impl Default for CircleGizmo{
+    fn default() -> Self {
+        Self { radius: 10.0, color: Color::Srgba(Srgba::new(1.0, 0.0, 0.0, 1.0)) }
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 struct SquareGizmo {
@@ -36,6 +41,11 @@ impl From<CircleGizmo> for WireFrameGizmo {
         Self::Circle(value)
     }
 }
+impl Default for WireFrameGizmo{
+    fn default() -> Self {
+        Self::Circle(CircleGizmo::default())
+    }
+}
 
 impl WireFrameGizmo {
     pub fn draw(&self, point: Vec3, gizmos: &mut Gizmos) {
@@ -51,13 +61,11 @@ impl WireFrameGizmo {
 }
 
 #[derive(Debug, Clone, PartialEq, Component)]
+#[require(Transform)]
 pub struct WireFrame {
     frame: WireFrameGizmo,
 }
 impl WireFrame {
-    // pub fn new(frame: WireFrameGizmo)->Self{
-    //     Self{frame}
-    // }
     pub fn new_circle(radius: f32, color: Color) -> Self {
         let frame = CircleGizmo::new(radius, color).into();
         Self { frame }
@@ -68,5 +76,10 @@ impl WireFrame {
     }
     pub fn draw(&self, point: Vec3, gizmos: &mut Gizmos) {
         self.frame.draw(point, gizmos);
+    }
+}
+impl Default for WireFrame{
+    fn default() -> Self {
+        Self { frame: Default::default() }
     }
 }

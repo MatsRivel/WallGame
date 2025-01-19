@@ -23,7 +23,7 @@ impl MyPlayerBundle {
 }
 
 #[derive(Debug, Clone, Component, PartialEq, Eq)]
-#[require(Mesh3d, MeshMaterial3d<StandardMaterial>, Transform, IsSnappable, IsDraggable)]
+#[require(Mesh3d, MeshMaterial3d<StandardMaterial>, Transform, IsTileSnappable, IsDraggable, GizmoOutlineToggle)]
 pub struct MyPlayer {
     player_id: PlayerId,
     pos: GridPosition,

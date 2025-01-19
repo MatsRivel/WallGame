@@ -41,7 +41,6 @@ pub fn move_camera(
         if !event.state.is_pressed() {
             continue;
         }
-        println!("{event:?}");
         let move_dir = MoveDirections::new_event(event).to_vec3();
         let mut cam = controlled_camera_query.single_mut();
         cam.translation += move_dir * 25.0;

@@ -1,37 +1,43 @@
 use super::*;
 #[derive(Component, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug)]
-pub enum IsVisible {
+#[require(WireFrame)]
+pub enum GizmoOutlineToggle {
     Visible,
     Invisible,
 }
-impl IsVisible {
+impl Default for GizmoOutlineToggle{
+    fn default() -> Self {
+        Self::Invisible
+    }
+}
+impl GizmoOutlineToggle {
     pub fn is_visible(&self) -> bool {
         match self {
-            IsVisible::Visible => true,
-            IsVisible::Invisible => false,
+            GizmoOutlineToggle::Visible => true,
+            GizmoOutlineToggle::Invisible => false,
         }
     }
     pub fn is_invisible(&self) -> bool {
         match self {
-            IsVisible::Visible => false,
-            IsVisible::Invisible => true,
+            GizmoOutlineToggle::Visible => false,
+            GizmoOutlineToggle::Invisible => true,
         }
     }
 }
 pub fn tag_visible_on_hover(
     hit: Trigger<Pointer<Over>>,
-    mut frame_query: Query<(Entity, &mut IsVisible), With<GridType>>,
+    mut frame_query: Query<(Entity, &mut GizmoOutlineToggle), With<IsHoverable>>,
 ) {
     for (_, mut visibility) in frame_query.iter_mut().filter(|(e, _)| *e == hit.target) {
-        *visibility = IsVisible::Visible;
+        *visibility = GizmoOutlineToggle::Visible;
     }
 }
 
 pub fn tag_invisible_on_hover_end(
     hit: Trigger<Pointer<Out>>,
-    mut frame_query: Query<(Entity, &mut IsVisible), With<GridType>>,
+    mut frame_query: Query<(Entity, &mut GizmoOutlineToggle), With<IsHoverable>>,
 ) {
     for (_, mut visibility) in frame_query.iter_mut().filter(|(e, _)| *e == hit.target) {
-        *visibility = IsVisible::Invisible;
+        *visibility = GizmoOutlineToggle::Invisible;
     }
 }
