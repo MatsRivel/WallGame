@@ -8,7 +8,7 @@ pub struct TileBundle {
     material: MeshMaterial3d<StandardMaterial>,
     grid_type: GridType,
     visibility: GizmoOutlineToggle,
-    hoverable: IsHoverable
+    hoverable: IsHoverable,
 }
 impl TileBundle {
     pub fn new(
@@ -39,7 +39,7 @@ impl TileBundle {
             )),
         }
     }
-    
+
     fn new_square(
         position: Vec3,
         x: f32,
@@ -68,7 +68,6 @@ impl TileBundle {
             grid_type: GridType::Tile,
             visibility: GizmoOutlineToggle::Invisible,
             hoverable: IsHoverable,
-
         }
     }
     fn new_tile(

@@ -5,7 +5,7 @@ pub enum GizmoOutlineToggle {
     Visible,
     Invisible,
 }
-impl Default for GizmoOutlineToggle{
+impl Default for GizmoOutlineToggle {
     fn default() -> Self {
         Self::Invisible
     }

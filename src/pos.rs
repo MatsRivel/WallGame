@@ -1,7 +1,7 @@
 use super::*;
 
 #[derive(Debug, Component, Clone, Copy, Eq, PartialEq)]
-pub struct GridPosition{
+pub struct GridPosition {
     x: usize,
     y: usize,
 }
@@ -22,7 +22,7 @@ impl GridPosition {
     }
     fn to_float(v: usize) -> f32 {
         let v = v as f32 * STEP_SIZE;
-        
+
         v - Self::min_pos()
     }
 }

@@ -3,14 +3,14 @@ pub type Pos = [usize; 2];
 fn pos_to_vec_component(x: usize, modifier: f32) -> f32 {
     let x = x as i32 - (N_TILES / 2);
     let x = x as f32 * STEP_SIZE;
-    
+
     x + TILE_WIDTH / 2f32 + modifier
 }
 
 pub fn pos_to_vec3(pos: Pos, xmod: f32, ymod: f32) -> Vec3 {
     let x = pos_to_vec_component(pos[0], xmod);
     let y = pos_to_vec_component(pos[1], ymod);
-    
+
     Vec3::new(x, y, 0.0)
 }
 

@@ -1,18 +1,32 @@
 use super::*;
+#[derive(Debug, Clone, Copy, PartialEq)]
+enum Orientation {
+    Horizontal,
+    Vertical,
+}
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 struct CircleGizmo {
     radius: f32,
     color: Color,
+    orientation: Orientation,
 }
 impl CircleGizmo {
     fn new(radius: f32, color: Color) -> Self {
-        Self { radius, color }
+        Self {
+            radius,
+            color,
+            orientation: Orientation::Horizontal,
+        }
     }
 }
-impl Default for CircleGizmo{
+impl Default for CircleGizmo {
     fn default() -> Self {
-        Self { radius: 10.0, color: Color::Srgba(Srgba::new(1.0, 0.0, 0.0, 1.0)) }
+        Self {
+            radius: 10.0,
+            color: Color::Srgba(Srgba::new(1.0, 0.0, 0.0, 1.0)),
+            orientation: Orientation::Horizontal,
+        }
     }
 }
 
@@ -20,10 +34,36 @@ impl Default for CircleGizmo{
 struct SquareGizmo {
     size: Vec2,
     color: Color,
+    orientation: Orientation,
 }
 impl SquareGizmo {
     fn new(size: Vec2, color: Color) -> Self {
-        Self { size, color }
+        Self {
+            size,
+            color,
+            orientation: Orientation::Horizontal,
+        }
+    }
+    fn rotate(&mut self) {
+        println!("ROTATE!");
+        match self.orientation {
+            Orientation::Horizontal => {
+                self.orientation = Orientation::Vertical;
+                let temp = self.size.x;
+                self.size.x = self.size.y;
+                self.size.y = temp;
+            }
+            Orientation::Vertical => {
+                self.orientation = Orientation::Horizontal;
+                let temp = self.size.x;
+                self.size.x = self.size.y;
+                self.size.y = temp;
+            }
+        }
+    }
+    fn rotated(mut self) -> Self {
+        self.rotate();
+        self
     }
 }
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -41,7 +81,7 @@ impl From<CircleGizmo> for WireFrameGizmo {
         Self::Circle(value)
     }
 }
-impl Default for WireFrameGizmo{
+impl Default for WireFrameGizmo {
     fn default() -> Self {
         Self::Circle(CircleGizmo::default())
     }
@@ -77,9 +117,17 @@ impl WireFrame {
     pub fn draw(&self, point: Vec3, gizmos: &mut Gizmos) {
         self.frame.draw(point, gizmos);
     }
+    pub fn rotate(&mut self) {
+        self.frame = match self.frame {
+            WireFrameGizmo::Circle(circle) => WireFrameGizmo::Circle(circle),
+            WireFrameGizmo::Square(square_gizmo) => WireFrameGizmo::Square(square_gizmo.rotated()),
+        }
+    }
 }
-impl Default for WireFrame{
+impl Default for WireFrame {
     fn default() -> Self {
-        Self { frame: Default::default() }
+        Self {
+            frame: Default::default(),
+        }
     }
 }

@@ -1,17 +1,17 @@
 mod camera;
+mod grid;
 mod move_directions;
 mod player;
 mod pos;
 mod position_conversion;
 mod tiles;
 mod visibility_toggle;
-mod wireframe;
-mod grid;
 mod walls;
+mod wireframe;
 
 pub use bevy::color::palettes::css::*;
 // use bevy::gizmos::grid;
-use bevy::input::keyboard::KeyboardInput;
+use bevy::{input::keyboard::KeyboardInput, picking, ui::picking_backend};
 pub use bevy::input::mouse::MouseMotion;
 use bevy::pbr::CascadeShadowConfigBuilder;
 pub use bevy::prelude::*;
@@ -22,7 +22,7 @@ use player::{MyPlayer, MyPlayerBundle};
 use pos::GridPosition;
 use tiles::TileBundle;
 use visibility_toggle::{GizmoOutlineToggle, tag_invisible_on_hover_end, tag_visible_on_hover};
-use walls::spawn_wall;
+use walls::{IsWall, spawn_wall};
 
 use std::f32::consts::PI;
 use wireframe::WireFrame;
@@ -31,7 +31,6 @@ const TRENCH_WIDTH: f32 = 8.0;
 const N_TILES: i32 = 5;
 const STEP_SIZE: f32 = TILE_WIDTH + TRENCH_WIDTH;
 pub const SKY_COLOR: Color = Color::linear_rgb(0.5, 0.5, 0.1);
-
 
 fn main() {
     unsafe {
@@ -55,7 +54,7 @@ pub fn simple_setup(
     asset_server: Res<AssetServer>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut meshes: ResMut<Assets<Mesh>>,
-){
+) {
     commands.spawn(ControlledCamera::new());
     // Directional 'sun' light
     commands.spawn((
@@ -81,8 +80,13 @@ pub fn simple_setup(
     ));
     let start_pos = Vec3::ZERO;
     let n_walls = 4;
-    spawn_wall(start_pos, n_walls, &mut commands, &mut materials, &mut meshes);
-
+    spawn_wall(
+        start_pos,
+        n_walls,
+        &mut commands,
+        &mut materials,
+        &mut meshes,
+    );
 }
 pub fn setup(
     mut commands: Commands,
@@ -149,40 +153,40 @@ pub fn setup(
     ));
 
     spawn_player_bundle_a(&mut commands, &mut materials, &mut meshes)
-        .observe(drag)
+        .observe(drag_with_collision)
         .observe(snap_drop_tile);
 
     spawn_player_bundle_b(&mut commands, &mut materials, &mut meshes)
-        .observe(drag)
+        .observe(drag_with_collision)
         .observe(snap_drop_tile);
 
     spawn_grid(&mut commands, &mut materials, &mut meshes);
-    let start_pos = Vec3::new(STEP_SIZE*(N_TILES-2) as f32, 0.0, 0.0);
+    let start_pos = Vec3::new(STEP_SIZE * (N_TILES - 2) as f32, 0.0, 0.0);
     let n_walls = 20;
-    spawn_wall(start_pos, n_walls, &mut commands, &mut materials, &mut meshes);
-    
+    spawn_wall(
+        start_pos,
+        n_walls,
+        &mut commands,
+        &mut materials,
+        &mut meshes,
+    );
 }
 
 fn spawn_grid<'a>(
     commands: &'a mut Commands,
     materials: &'a mut ResMut<Assets<StandardMaterial>>,
-    meshes: &'a mut ResMut<Assets<Mesh>>){
+    meshes: &'a mut ResMut<Assets<Mesh>>,
+) {
     for (x, y) in (0..N_TILES as usize).flat_map(|x| (0..N_TILES as usize).map(move |y| (x, y))) {
         let grid_position = GridPosition::new(x, y);
-        commands.spawn(TileBundle::new(grid_position, GridType::Tile, materials, meshes).unwrap(),
-            )
+        commands
+            .spawn(TileBundle::new(grid_position, GridType::Tile, materials, meshes).unwrap())
             .observe(tag_invisible_on_hover_end)
             .observe(tag_visible_on_hover);
         if x as i32 != N_TILES - 1 {
             commands
                 .spawn(
-                    TileBundle::new(
-                        grid_position,
-                        GridType::Vertical,
-                        materials,
-                        meshes,
-                    )
-                    .unwrap(),
+                    TileBundle::new(grid_position, GridType::Vertical, materials, meshes).unwrap(),
                 )
                 .observe(tag_invisible_on_hover_end)
                 .observe(tag_visible_on_hover);
@@ -190,13 +194,8 @@ fn spawn_grid<'a>(
         if y as i32 != N_TILES - 1 {
             commands
                 .spawn(
-                    TileBundle::new(
-                        grid_position,
-                        GridType::Horizontal,
-                        materials,
-                        meshes,
-                    )
-                    .unwrap(),
+                    TileBundle::new(grid_position, GridType::Horizontal, materials, meshes)
+                        .unwrap(),
                 )
                 .observe(tag_invisible_on_hover_end)
                 .observe(tag_visible_on_hover);
@@ -255,15 +254,54 @@ fn rotate_light(
 /// When an object is "Dragged" (prolonged click), the object follows the mouse.
 fn drag(
     hit: Trigger<Pointer<Drag>>,
-    mut player_query: Query<(Entity, &mut Transform), With<IsDraggable>>,
+    mut target_query: Query<(Entity, &mut Transform), With<IsCollidingDraggable>>,
 ) {
     let target_id = hit.target;
-    for (entity, mut target) in player_query.iter_mut() {
+    for (entity, mut target) in target_query.iter_mut() {
         if target_id != entity {
             continue;
         }
         let pointer_location = hit.delta;
         target.translation += Vec3::new(pointer_location.x, -pointer_location.y, 0.0);
+    }
+}
+//TODO: Correct collisions.
+fn drag_with_collision(
+    hit: Trigger<Pointer<Drag>>,
+    mut target_query: Query<(Entity, &mut Transform), With<IsCollidingDraggable>>,
+) {
+    let target_id = hit.target;
+    for (entity, mut target) in target_query.iter_mut() {
+        if target_id != entity {
+            continue;
+        }
+        
+        let distance = &hit.event().distance;
+        let dir = match Dir3::from_xyz(target.translation.x + distance.x, target.translation.y + distance.y, 0.0){
+            Ok(v) => v,
+            Err(_e) => return,
+        };
+        // let ray = Ray3d::new(target.translation,dir) ;
+        let pointer_location = hit.delta;
+        target.translation += Vec3::new(pointer_location.x, -pointer_location.y, 0.0);
+    }
+}
+fn rotate_dragged_wall(
+    hit: Trigger<Pointer<Drag>>,
+    keypress: Res<ButtonInput<KeyCode>>,
+    mut target_query: Query<
+        (Entity, &mut Transform, &mut WireFrame),
+        (With<IsDraggable>, With<IsWall>)>
+) {
+    if keypress.just_released(KeyCode::KeyR) {
+        let target_id = hit.target;
+        for (entity, mut target, mut wireframe) in target_query.iter_mut() {
+            if target_id != entity {
+                continue;
+            }
+            target.rotate(Quat::from_axis_angle(Vec3::Z, PI / 2f32));
+            wireframe.rotate();
+        }
     }
 }
 /// Snaps to an integer position in a grid defined mathematically.
@@ -292,20 +330,25 @@ fn snap_drop_wall(
         if target_id != entity {
             continue;
         }
-        let modifier1 = (TRENCH_WIDTH-TILE_WIDTH)/2f32;
-        let modifier2 = (TILE_WIDTH + TRENCH_WIDTH)/2f32;
-        let modified_mouse_pos = target.translation + Vec3::ZERO.with_y(modifier1);
+        // let modifier1 = (TRENCH_WIDTH-TILE_WIDTH)/2f32;
+        // let modifier2 = (TILE_WIDTH + TRENCH_WIDTH)/2f32;
+        // let modified_mouse_pos = target.translation + Vec3::ZERO.with_y(modifier1);
+        // let pos: GridPosition = modified_mouse_pos.into();
+        // let next = Vec3::from(pos) + Vec3::ZERO.with_y(modifier2);
+        // target.translation = next;
+        let mod1 = (TRENCH_WIDTH - TILE_WIDTH) / 2f32;
+        let modified_mouse_pos = target.translation + Vec3::new(-TILE_WIDTH / 2f32, mod1, 0.0);
         let pos: GridPosition = modified_mouse_pos.into();
-        let next = Vec3::from(pos) + Vec3::ZERO.with_y(modifier2);
+        let next = Vec3::from(pos) + Vec3::new(STEP_SIZE / 2f32, STEP_SIZE / 2f32, 0.0);
         target.translation = next;
     }
 }
 
 pub fn draw_always_visible_wireframes(
     query: Query<(&Transform, &WireFrame), Without<GizmoOutlineToggle>>,
-    mut gizmos: Gizmos
-    ){
-    for (transform, frame) in query.iter(){
+    mut gizmos: Gizmos,
+) {
+    for (transform, frame) in query.iter() {
         let point = transform.translation;
         frame.draw(point, &mut gizmos);
     }
@@ -315,7 +358,6 @@ pub fn draw_toggelable_visible_wireframes(
     query: Query<(&Transform, &WireFrame, &GizmoOutlineToggle)>,
     mut gizmos: Gizmos,
 ) {
-
     for (transform, frame, _) in query
         .iter()
         .filter(|(_, _, visibility)| visibility.is_visible())
@@ -325,7 +367,6 @@ pub fn draw_toggelable_visible_wireframes(
     }
 }
 
-
 #[derive(Debug, Component, Default)]
 struct IsHoverable;
 
@@ -334,6 +375,10 @@ struct IsDroppable;
 
 #[derive(Debug, Component, Default)]
 struct IsDraggable;
+
+#[derive(Debug, Component, Default)]
+#[require(IsDraggable)]
+struct IsCollidingDraggable;
 
 #[derive(Debug, Component)]
 struct IsSnapTarget;
