@@ -83,6 +83,7 @@ pub fn spawn_wall(
             .observe(tag_invisible_on_hover_end)
             .observe(drag)
             .observe(snap_drop_wall)
-            .observe(rotate_dragged_wall);
+            .observe(rotate_dragged_wall)
+            ;
     }
 }

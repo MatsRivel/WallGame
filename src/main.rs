@@ -254,7 +254,7 @@ fn rotate_light(
 /// When an object is "Dragged" (prolonged click), the object follows the mouse.
 fn drag(
     hit: Trigger<Pointer<Drag>>,
-    mut target_query: Query<(Entity, &mut Transform), With<IsCollidingDraggable>>,
+    mut target_query: Query<(Entity, &mut Transform), With<IsDraggable>>,
 ) {
     let target_id = hit.target;
     for (entity, mut target) in target_query.iter_mut() {
@@ -339,7 +339,9 @@ fn snap_drop_wall(
         let mod1 = (TRENCH_WIDTH - TILE_WIDTH) / 2f32;
         let modified_mouse_pos = target.translation + Vec3::new(-TILE_WIDTH / 2f32, mod1, 0.0);
         let pos: GridPosition = modified_mouse_pos.into();
-        let next = Vec3::from(pos) + Vec3::new(STEP_SIZE / 2f32, STEP_SIZE / 2f32, 0.0);
+        let mut pos_as_vec: Vec3 = pos.into();
+        // if pos_as_vec.x == 
+        let next = pos_as_vec+ Vec3::new(STEP_SIZE / 2f32, STEP_SIZE / 2f32, 0.0);
         target.translation = next;
     }
 }
