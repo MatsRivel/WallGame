@@ -25,6 +25,13 @@ impl GridPosition {
 
         v - Self::min_pos()
     }
+    pub fn as_tuple(&self)->(usize,usize){
+        (self.x,self.y)
+    }
+    pub fn center()->GridPosition{
+        let v = N_TILES as usize / 2;
+        Self::new(v, v)
+    }
 }
 impl From<Vec3> for GridPosition {
     fn from(value: Vec3) -> GridPosition {
