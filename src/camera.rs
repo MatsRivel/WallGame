@@ -87,12 +87,13 @@ pub fn spawn_camera(commands: &mut Commands, pos: GridPosition){
         // .insert(VolumetricFog::default());
 }
 
-pub const ZOOM_WHEEL_SPEED_MULTIPLIER: i32 = 2;
+pub const ZOOM_WHEEL_SPEED_MULTIPLIER: i32 = 1;
 pub fn zoom_camera(mut mouse_wheel_event: EventReader<MouseWheel>, mut query: Query<(Entity, &mut Transform),With<ZoomCameraIdentifier>>){
     for mouse_wheel in mouse_wheel_event.read(){
         let (_camera_entity, mut zoom) = query.single_mut();
         let z_mod = mouse_wheel.y * (ZOOM_WHEEL_SPEED_MULTIPLIER as f32);
-        zoom.translation += Vec3::ZERO.with_z(z_mod)
+        zoom.translation += Vec3::ZERO.with_z(z_mod);
+        println!("{:?}",zoom.translation)
 
     }
 }
